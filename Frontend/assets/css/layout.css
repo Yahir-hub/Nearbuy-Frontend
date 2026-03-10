@@ -1,0 +1,328 @@
+/* --- VARIABLES --- */
+:root {
+    --primary: #4361ee;
+    --success: #2ec4b6;
+    --danger: #e63946;
+    --bg-main: #f8f9fa;
+    --bg-panel: #ffffff;
+    --text-dark: #2b2d42;
+    --text-light: #8d99ae;
+    --border: #edf2f4;
+    --shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+/* --- LAYOUT PRINCIPAL POS --- */
+.pos-layout {
+    display: grid;
+    grid-template-columns: 1fr 380px; /* Catálogo flexible | Ticket fijo */
+    height: 100vh;
+    overflow: hidden;
+    background-color: var(--bg-main);
+}
+
+/* --- SECCIÓN IZQUIERDA: CATÁLOGO --- */
+.catalog-section {
+    padding: 2rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.catalog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.search-wrapper input {
+    padding: 10px 15px;
+    border-radius: 20px;
+    border: 1px solid #ccc;
+    width: 250px;
+    outline: none;
+    transition: 0.3s;
+}
+
+.search-wrapper input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+}
+
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1.5rem;
+}
+
+/* --- TARJETAS DE PRODUCTO --- */
+.product-card {
+    background: var(--bg-panel);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    border: 1px solid var(--border);
+}
+
+.product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+}
+
+.card-img {
+    height: 140px;
+    background-size: cover;
+    background-position: center;
+}
+
+.card-body {
+    padding: 12px;
+}
+
+.category-tag {
+    font-size: 0.75rem;
+    background: #eef2ff;
+    color: var(--primary);
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-weight: bold;
+}
+
+.product-title {
+    margin: 8px 0;
+    font-size: 1rem;
+    color: var(--text-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.price {
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: var(--text-dark);
+}
+
+.btn-icon-add {
+    background: var(--primary);
+    color: white;
+    border: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
+/* --- SECCIÓN DERECHA: TICKET --- */
+.ticket-section {
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem;
+    box-shadow: -4px 0 15px rgba(0,0,0,0.03);
+}
+
+.ticket-header {
+    border-bottom: 2px dashed var(--border);
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+
+.cart-items-container {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding-right: 5px; /* Espacio para scrollbar */
+}
+
+/* Scrollbar elegante */
+.cart-items-container::-webkit-scrollbar { width: 5px; }
+.cart-items-container::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+
+.cart-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; } }
+
+.item-name {
+    display: block;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.item-price {
+    font-size: 0.85rem;
+    color: var(--text-light);
+}
+
+.item-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-mini {
+    width: 24px;
+    height: 24px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-trash {
+    color: var(--danger);
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    margin-left: 5px;
+}
+
+/* --- TICKET FOOTER --- */
+.ticket-footer {
+    border-top: 2px dashed var(--border);
+    padding-top: 1rem;
+    margin-top: 1rem;
+}
+
+.summary-row.total {
+    display: flex;
+    justify-content: space-between;
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin-bottom: 1.5rem;
+    color: var(--text-dark);
+}
+
+.actions-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 10px;
+}
+
+.btn {
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn-danger {
+    background: #ffe5e7;
+    color: var(--danger);
+}
+.btn-danger:hover { background: #ffd0d4; }
+
+.btn-success {
+    background: var(--success);
+    color: white;
+}
+.btn-success:hover { filter: brightness(0.9); }
+
+/* =========================================
+   LOGIN / REGISTER DESIGN (Estilo Imagen 2)
+   ========================================= */
+
+/* Contenedor que centra todo en la pantalla */
+.login-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: var(--nb-cream); /* Fondo crema de la página */
+}
+
+/* La tarjeta oscura */
+.login-card {
+    background-color: #2a0a0c; /* Un vino mucho más oscuro, casi negro/café */
+    width: 100%;
+    max-width: 450px;
+    padding: 3rem 4rem;
+    border-radius: 30px; /* Bordes muy redondeados */
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    text-align: center;
+}
+
+/* Título ¡BIENVENIDO! */
+.login-title {
+    color: white;
+    font-size: 1.8rem;
+    font-weight: bold;
+    margin-bottom: 2.5rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Grupos de inputs */
+.input-group {
+    margin-bottom: 1.5rem;
+    text-align: left; /* Las etiquetas van a la izquierda */
+}
+
+.input-group label {
+    display: block;
+    color: white;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Los campos de texto (Color crema/dorado) */
+.input-group input {
+    width: 100%;
+    background-color: #f3dfb0; /* El color "latte" de la imagen */
+    border: none;
+    padding: 12px 15px;
+    border-radius: 10px;
+    font-size: 1rem;
+    color: #333;
+    outline: none;
+}
+
+.input-group input:focus {
+    box-shadow: 0 0 0 3px rgba(243, 223, 176, 0.5);
+}
+
+/* Botón (Mismo color que los inputs) */
+.btn-gold {
+    background-color: #f3dfb0;
+    color: black;
+    font-weight: bold;
+    padding: 12px 40px;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    text-decoration: underline; /* Detalle sutil de la imagen */
+    margin-top: 1rem;
+    transition: transform 0.2s;
+}
+
+.btn-gold:hover {
+    transform: scale(1.05);
+    background-color: #e6ce9a;
+}
+
+.error-msg {
+    color: #ff6b6b;
+    margin-top: 15px;
+    font-size: 0.9rem;
+}

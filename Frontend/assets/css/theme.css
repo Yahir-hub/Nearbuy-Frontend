@@ -1,0 +1,16 @@
+:root {
+    /* Paleta extraída de tu imagen */
+    --nb-wine: #4a1d1f;      /* El color vino oscuro del header */
+    --nb-wine-light: #6d2c30; /* Un tono un poco más claro para botones */
+    --nb-cream: #fffbf0;     /* El fondo beige suave */
+    --nb-gold: #f4d06f;      /* El color del botón de búsqueda (aprox) */
+    --nb-text: #333333;
+    --nb-white: #ffffff;
+    
+    /* Dimensiones */
+    --nav-height: 70px;
+}
+
+body {
+    background-color: var(--nb-cream); /* Fondo general */
+}
