@@ -2,10 +2,11 @@
  * api.js
  * Wrapper para fetch que maneja errores y mocks.
  */
+import { Modal } from './components/Modal.js'; // IMPORTAMOS EL COMPONENTE MODAL
 
 // CONFIGURACIÓN
-const API_BASE_URL = 'http://localhost:5000/api'; // Puerto común para Flask/FastAPI/Django
-const USE_MOCK = true; // <--- CAMBIA A FALSE CUANDO TENGAS EL BACKEND
+const API_BASE_URL = 'http://127.0.0.1:8000'; // Puerto común para Flask/FastAPI/Django
+const USE_MOCK = false; // <--- CAMBIA A FALSE CUANDO TENGAS EL BACKEND
 
 // SIMULACIÓN DE DATOS (MOCKS)
 const mockDB = {
@@ -23,7 +24,7 @@ const mockDB = {
         return { success: false, error: 'Credenciales inválidas' };
     },
     // NUEVO ENDPOINT
-    'products': () => {
+    'productos': () => {
         return {
             success: true,
             data: [
@@ -73,14 +74,25 @@ export async function request(endpoint, method = 'GET', body = null) {
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Error en el servidor');
+            const errorData = await response.json().catch(() => ({}));
+            const mensaje = errorData.detail || errorData.message || 'Error desconocido en el servidor';
+            
+            // MOSTRAR MODAL DE ERROR AUTOMÁTICAMENTE
+            Modal.show('¡Error!', mensaje, 'error');
+            
+            throw new Error(mensaje);
         }
 
         return await response.json();
 
     } catch (error) {
         console.error('[API Error]:', error);
+        
+        // Si el error es por conexión (Fetch falló)
+        if (error.message === 'Failed to fetch') {
+            Modal.show('Sin Conexión', 'No pudimos contactar con el servidor. ¿Está encendido el backend?', 'error');
+        }
+        
         throw error;
     }
 }

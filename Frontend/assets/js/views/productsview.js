@@ -17,9 +17,17 @@ export async function renderProducts(categoryId) {
     // Obtener productos
     let products = [];
     try {
-        const response = await request('products'); 
-        products = response; 
-        window.currentProducts = products; // Guardamos para el carrito
+        const response = await request('productos'); 
+        // MAPEADO DE CAMPOS: Convertimos los nombres del Backend (Supabase) 
+        // a los nombres que espera el componente ProductCard.
+        products = response.items.map(p => ({
+            id: p.id,
+            name: p.nombre,       // De 'nombre' (BD) a 'name' (UI)
+            price: p.precio,      // De 'precio' (BD) a 'price' (UI)
+            category: p.id_categoria,
+            image: p.imagen_url   // De 'imagen_url' (BD) a 'image' (UI)
+        }));
+        window.currentProducts = products;
     } catch (error) {
         console.error(error);
     }

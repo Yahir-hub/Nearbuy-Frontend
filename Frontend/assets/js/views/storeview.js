@@ -1,7 +1,8 @@
 import { Navbar } from '../components/Navbar.js';
 import { state } from '../state.js';
+import { request } from '../api.js';
 
-const categories = [
+const hardcodedCategories = [
     { id: 1, name: 'LACTEOS', color: '#e3f2fd', icon: 'fa-cheese' }, 
     { id: 2, name: 'ABARROTES', color: '#fff3e0', icon: 'fa-bread-slice' },
     { id: 3, name: 'BEBIDAS', color: '#e0f2f1', icon: 'fa-wine-bottle' },
@@ -16,9 +17,26 @@ const categories = [
     { id: 12, name: 'HOGAR', color: '#e0f7fa', icon: 'fa-chair' }
 ];
 
-export function renderStore() {
+export async function renderStore() {
     const app = document.getElementById('app');
     state.subscribe(() => { renderStore(); });
+
+    // Intentar obtener categorías del backend real
+    let categories = hardcodedCategories;
+    try {
+        const response = await request('categorias');
+        // El backend devuelve { items: [...], total: X }
+        if (response && response.items) {
+            categories = response.items.map(cat => ({
+                id: cat.id,
+                name: cat.nombre.toUpperCase(), // Usamos 'nombre' del backend
+                color: hardcodedCategories.find(h => h.id === cat.id)?.color || '#e3f2fd',
+                icon: hardcodedCategories.find(h => h.id === cat.id)?.icon || 'fa-tag'
+            }));
+        }
+    } catch (error) {
+        console.log('Error al cargar categorías, usando locales:', error.message);
+    }
 
     app.innerHTML = `
         <div style="width: 100%; min-height: 100vh; display: flex; flex-direction: column;">

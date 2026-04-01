@@ -1,27 +1,27 @@
 import { state } from './state.js';
+import { request } from './api.js';
 
 export const AuthService = {
-    async login(email, password) {
-        return new Promise((resolve) => {
-            // Simulamos una espera de medio segundo (como si fuera al servidor)
-            setTimeout(() => {
-                if (!email || !password) {
-                    resolve({ success: false, message: 'Por favor, llena todos los campos.' });
-                    return;
-                }
+    async login(nombre_usuario, contrasena) {
+        try {
+            const response = await request('auth/login', 'POST', { nombre_usuario, contrasena });
+            // FastAPI devuelve: { access_token, token_type, perfil }
+            const { access_token, perfil } = response;
+            state.setUser(perfil, access_token);
+            return { success: true, role: perfil.rol || 'client' }; // Asumiendo que perfil tiene rol
+        } catch (error) {
+            return { success: false, message: error.message || 'Error en login' };
+        }
+    },
 
-                // LÓGICA DE ROLES
-                if (email === 'admin@nearbuy.com' && password === '123456') {
-                    // Es Administrador
-                    state.setUser({ email, role: 'admin', name: 'Administrador' }, 'token-admin-123');
-                    resolve({ success: true, role: 'admin' });
-                } else {
-                    // Es un Cliente normal (cualquier otro correo)
-                    state.setUser({ email, role: 'client', name: 'Cliente' }, 'token-client-456');
-                    resolve({ success: true, role: 'client' });
-                }
-            }, 500);
-        });
+    async register(userData) {
+        try {
+            // Llamada al nuevo endpoint de registro en el backend
+            await request('auth/register', 'POST', userData);
+            return { success: true };
+        } catch (error) {
+            return { success: false, message: error.message || 'Error en registro' };
+        }
     },
 
     logout() {

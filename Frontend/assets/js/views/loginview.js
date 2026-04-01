@@ -11,12 +11,12 @@ export function renderLogin() {
                 <form id="loginForm">
                     <div class="input-group">
                         <label>Usuario</label>
-                        <input type="email" id="email" required placeholder="tu@correo.com">
+                        <input type="text" id="nombre_usuario" required placeholder="tu_usuario">
                     </div>
                     
                     <div class="input-group">
                         <label>Contraseña</label>
-                        <input type="password" id="password" required placeholder="******">
+                        <input type="password" id="contrasena" required placeholder="******">
                     </div>
 
                     <div class="login-actions">
@@ -50,20 +50,21 @@ export function renderLogin() {
         btn.disabled = true;
         errorMsg.style.display = 'none';
 
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
+        const nombre_usuario = document.getElementById('nombre_usuario').value;
+        const contrasena = document.getElementById('contrasena').value;
 
-        // Llamada al servicio de autenticación
-        const result = await AuthService.login(email, password);
+        // Llamada al servicio de autenticación (Paso 3: Sincronización real)
+        const result = await AuthService.login(nombre_usuario, contrasena);
 
         if (result.success) {
-            // Redirección basada en el rol (Admin o Cliente)
+            // El backend devuelve el rol en el objeto perfil
             if (result.role === 'admin') {
                 window.location.hash = '#/admin';
             } else {
                 window.location.hash = '#/store';
             }
         } else {
+            // El mensaje de error ahora viene del backend (vía Modal o texto)
             errorMsg.innerText = result.message;
             errorMsg.style.display = 'block';
             btn.innerText = 'Ingresar';

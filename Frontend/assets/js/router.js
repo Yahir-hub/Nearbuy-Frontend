@@ -15,23 +15,25 @@ export const Router = {
     },
 
     handleRoute() {
+        // Obtenemos el path y aseguramos que empiece con /
         let path = window.location.hash.slice(1) || '/';
+        if (!path.startsWith('/')) path = '/' + path;
         
         const storeMatch = path.match(/^\/store\/(\d+)$/);
 
-        // --- 1. AGREGAR /register A RUTAS PÚBLICAS ---
+        // --- 1. RUTAS PÚBLICAS ---
         const publicRoutes = ['/login', '/', '/register'];
         const isPublic = publicRoutes.includes(path);
+
+        // Si ya está autenticado e intenta ir a login o "/" (pero no a register si quiere crear otra cuenta), a la tienda
+        if (isPublic && state.isAuthenticated && (path === '/login' || path === '/')) {
+            window.location.hash = '#/store';
+            return;
+        }
 
         // Si no es pública y no está autenticado, al login
         if (!isPublic && !state.isAuthenticated) {
             window.location.hash = '#/login';
-            return;
-        }
-
-        // Si ya está autenticado e intenta ir a login o register, a la tienda
-        if (isPublic && state.isAuthenticated && (path === '/login' || path === '/register')) {
-            window.location.hash = '#/store';
             return;
         }
 
