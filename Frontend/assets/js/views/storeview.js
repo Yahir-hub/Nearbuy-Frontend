@@ -19,29 +19,53 @@ const hardcodedCategories = [
 
 export async function renderStore() {
     const app = document.getElementById('app');
-    state.subscribe(() => { renderStore(); });
+
+    // FIX: Limpiar la función de búsqueda de productsview
+    // para que el Navbar sepa que ya no estamos en esa vista
+    window._nbSearchProducts = null;
+
+    // Solo actualizar el Navbar cuando cambia el state
+    state.subscribe(() => {
+        const navWrapper = document.getElementById('nav-wrapper');
+        if (navWrapper) {
+            navWrapper.innerHTML = Navbar();
+        }
+    });
 
     // Intentar obtener categorías del backend real
-    let categories = hardcodedCategories;
+    let categories = [];
     try {
         const response = await request('categorias');
-        // El backend devuelve { items: [...], total: X }
-        if (response && response.items) {
-            categories = response.items.map(cat => ({
-                id: cat.id,
-                name: cat.nombre.toUpperCase(), // Usamos 'nombre' del backend
-                color: hardcodedCategories.find(h => h.id === cat.id)?.color || '#e3f2fd',
-                icon: hardcodedCategories.find(h => h.id === cat.id)?.icon || 'fa-tag'
-            }));
+        if (response && response.items && response.items.length > 0) {
+            categories = response.items.map(cat => {
+                const style = hardcodedCategories.find(h => h.id === cat.id) || 
+                              hardcodedCategories.find(h => h.name === cat.nombre.toUpperCase()) || 
+                              { color: '#e3f2fd', icon: 'fa-tag' };
+                
+                return {
+                    id: cat.id,
+                    name: cat.nombre.toUpperCase(),
+                    color: style.color,
+                    icon: style.icon
+                };
+            });
+        } else {
+            categories = hardcodedCategories;
         }
     } catch (error) {
         console.log('Error al cargar categorías, usando locales:', error.message);
+        categories = hardcodedCategories;
     }
+
+    const allCategory = { id: 'all', name: 'TODOS', color: '#f5f5f5', icon: 'fa-list' };
+    const displayCategories = [allCategory, ...categories];
 
     app.innerHTML = `
         <div style="width: 100%; min-height: 100vh; display: flex; flex-direction: column;">
             
-            ${Navbar()}
+            <div id="nav-wrapper">
+                ${Navbar()}
+            </div>
 
             <main style="
                 flex: 1; 
@@ -77,10 +101,10 @@ export async function renderStore() {
                     gap: 30px;
                     width: 100%;
                     max-width: 1000px;
-                    padding: 0 20px; /* Padding interno seguro */
+                    padding: 0 20px;
                 ">
                     
-                    ${categories.map(cat => `
+                    ${displayCategories.map(cat => `
                             <div onclick="window.location.hash = '#/store/${cat.id}'" style="
                             display: flex;
                             flex-direction: column;
@@ -90,8 +114,8 @@ export async function renderStore() {
                         ">
                             <div class="cat-card-hover" style="
                                 width: 100%;
-                                max-width: 160px; /* Límite máximo */
-                                aspect-ratio: 1/1; /* Siempre cuadrado */
+                                max-width: 160px;
+                                aspect-ratio: 1/1;
                                 background-color: ${cat.color};
                                 border-radius: 25px;
                                 border: 3px solid #ede0cc;

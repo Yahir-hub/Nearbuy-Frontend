@@ -2,10 +2,11 @@
  * api.js
  * Wrapper para fetch que maneja errores y mocks.
  */
-import { Modal } from './components/Modal.js'; // IMPORTAMOS EL COMPONENTE MODAL
+import { Modal } from './components/Modal.js';
+import { state } from './state.js'; // IMPORTAMOS EL COMPONENTE MODAL
 
 // CONFIGURACIÓN
-const API_BASE_URL = 'http://127.0.0.1:8000'; // Puerto común para Flask/FastAPI/Django
+const API_BASE_URL = 'http://127.0.0.1:8001'; // Puerto común para Flask/FastAPI/Django
 const USE_MOCK = false; // <--- CAMBIA A FALSE CUANDO TENGAS EL BACKEND
 
 // SIMULACIÓN DE DATOS (MOCKS)
@@ -62,37 +63,64 @@ export async function request(endpoint, method = 'GET', body = null) {
     // MODO REAL (Conexión a Python)
     try {
         const headers = { 'Content-Type': 'application/json' };
-        
-        // Inyectar Token si existe (Importación dinámica para evitar ciclos)
-        const { state } = await import('./state.js');
+
+        // Inyectar Token si existe
         if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
 
         const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
             method,
             headers,
             body: body ? JSON.stringify(body) : null
-        });
+        })
+
+        // FIXED R2: R2-F1
+        if (response.status === 401) {
+            state.logout();
+            Modal.show(
+                'Sesión expirada',
+                'Tu sesión ha terminado. Por favor inicia sesión nuevamente.',
+                'error'
+            );
+            window.location.hash = '#/login';
+            return { data: null, error: 'Sesión expirada' };
+        }
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            const mensaje = errorData.detail || errorData.message || 'Error desconocido en el servidor';
-            
-            // MOSTRAR MODAL DE ERROR AUTOMÁTICAMENTE
-            Modal.show('¡Error!', mensaje, 'error');
-            
-            throw new Error(mensaje);
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Error en el servidor');
         }
 
         return await response.json();
 
     } catch (error) {
+        // FIXED R2: R2-F1
         console.error('[API Error]:', error);
-        
-        // Si el error es por conexión (Fetch falló)
-        if (error.message === 'Failed to fetch') {
-            Modal.show('Sin Conexión', 'No pudimos contactar con el servidor. ¿Está encendido el backend?', 'error');
-        }
-        
-        throw error;
+        Modal.show(
+            'Error de conexión',
+            'No se pudo conectar con el servidor. Intenta más tarde.',
+            'error'
+        );
+        return { data: null, error: error.message };
     }
+}
+
+/**
+ * Obtener todas las categorías.
+ */
+export async function getCategorias() {
+    return await request('categorias');
+}
+
+/**
+ * Obtener todos los productos.
+ */
+export async function getProductos(limit = 2000, offset = 0) {
+    return await request(`productos?limit=${limit}&offset=${offset}`);
+}
+
+/**
+ * Obtener productos por categoría.
+ */
+export async function getProductosPorCategoria(categoriaId, limit = 2000, offset = 0) {
+    return await request(`productos?categoria_id=${categoriaId}&limit=${limit}&offset=${offset}`);
 }

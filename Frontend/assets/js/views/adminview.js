@@ -124,7 +124,7 @@ export async function renderAdmin() {
             if (confirm(`¿Estás seguro de cambiar el rol de este usuario a ${newRole}?`)) {
                 try {
                     // Usamos el nuevo endpoint PATCH que creamos en el backend
-                    await request(`perfil/${userId}/rol?rol=${newRole}`, 'PATCH');
+                    await request(`perfil/${userId}`, 'PATCH', { rol: nuevoRol })
                     alert('Rol actualizado con éxito');
                     renderAdmin(); // Recargar la vista
                 } catch (error) {

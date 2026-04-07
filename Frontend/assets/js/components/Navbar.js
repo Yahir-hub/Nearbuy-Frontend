@@ -3,15 +3,43 @@ import { state } from '../state.js';
 export function Navbar() {
     const cartCount = state.getCartCount();
 
-    // Función interna para manejar la búsqueda
+    // Búsqueda: si estamos en productsview filtra en vivo.
+    // Si estamos en otra vista, navega a store/all con la búsqueda pendiente.
     window.executeSearch = () => {
-        const query = document.getElementById('nav-search-input').value.trim();
-        if (query) {
-            window.location.hash = `#/search/${encodeURIComponent(query)}`;
+        const input = document.getElementById('nav-search-input');
+        if (!input) return;
+        const query = input.value.trim();
+        if (!query) return;
+
+        // Verificar que realmente estamos en productsview
+        const inProductsView = typeof window._nbSearchProducts === 'function' 
+            && window.location.hash.startsWith('#/store/');
+
+        if (inProductsView) {
+            window._nbSearchProducts(query);
+            return;
         }
+
+        // Si no, navegar
+        window._nbPendingSearch = query;
+        const currentHash = window.location.hash;
+        if (currentHash === '#/store/all') {
+            if (typeof window._nbRouterReload === 'function') window._nbRouterReload();
+        } else {
+            window.location.hash = '#/store/all';
+        }
+    
     };
 
-    // Manejar el Enter en el input
+    // Filtrar en tiempo real solo si estamos en productsview
+    window.handleSearchInput = (e) => {
+        if (typeof window._nbSearchProducts === 'function') {
+            window._nbSearchProducts(e.target.value);
+        }
+        // Si no estamos en productsview, no hacer nada (esperar Enter o click lupa)
+    };
+
+    // Enter en el buscador
     window.handleSearchKey = (e) => {
         if (e.key === 'Enter') {
             window.executeSearch();
@@ -45,7 +73,8 @@ export function Navbar() {
                     <input 
                         type="text" 
                         id="nav-search-input"
-                        onkeypress="window.handleSearchKey(event)"
+                        oninput="window.handleSearchInput(event)"
+                        onkeydown="window.handleSearchKey(event)"
                         placeholder="Buscar productos..." 
                         style="
                             width: 100%;

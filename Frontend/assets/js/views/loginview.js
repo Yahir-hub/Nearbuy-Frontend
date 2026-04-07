@@ -58,8 +58,8 @@ export function renderLogin() {
 
         if (result.success) {
             // El backend devuelve el rol en el objeto perfil
-            if (result.role === 'admin') {
-                window.location.hash = '#/admin';
+            if (result.role === 'admin' || result.role === 'empleado') {
+                window.location.hash = '#/pos';
             } else {
                 window.location.hash = '#/store';
             }
