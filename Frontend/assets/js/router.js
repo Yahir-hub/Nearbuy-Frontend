@@ -9,8 +9,6 @@
  */
 
 import { state } from './state.js';
-import { renderLogin } from './views/loginview.js'; 
-import { renderRegister } from './views/registerview.js';
 import { renderProfile } from './views/accountview.js';
 import { renderStore } from './views/storeview.js';
 import { renderProducts } from './views/productsview.js'; 
@@ -22,16 +20,12 @@ import { renderReportes } from './views/reportesview.js';
 import { renderInventario } from './views/inventarioview.js';
 import { renderMisPedidos } from './views/mispedidosview.js';
 import { renderQRVerify } from './views/qrverifyview.js';
-
-
+import './components/authmodal.js'; // El modal flotante
 
 export const Router = {
     init() {
         window.addEventListener('hashchange', () => this.handleRoute());
-        
-        // Exponer reload para que Navbar pueda forzar re-render sin hashchange
         window._nbRouterReload = () => this.handleRoute();
-        
         this.handleRoute();
     },
 
@@ -41,23 +35,27 @@ export const Router = {
         
         const storeMatch = path.match(/^\/store\/(all|\d+)$/);
 
-        // --- 1. RUTAS PÚBLICAS ---
-        const publicRoutes = ['/login', '/', '/register'];
-        const isPublic = publicRoutes.includes(path);
-
-        if (isPublic && state.isAuthenticated && (path === '/login' || path === '/')) {
-            const rol = state.user?.rol;
-            window.location.hash = (rol === 'admin' || rol === 'empleado') ? '#/pos' : '#/store';
+        // REGLA 1: Si entran a la raíz o al login viejo, mandarlos a la tienda
+        if (path === '/' || path === '/login') {
+            window.location.hash = '#/store';
+            // Si no hay sesión, mostramos el modal flotante 
+            if (!state.isAuthenticated && !sessionStorage.getItem('welcomeShown')) {
+                sessionStorage.setItem('welcomeShown', 'true');
+                setTimeout(() => window.showAuthModal('login'), 500);
+            }
             return;
         }
 
-        if (!isPublic && !state.isAuthenticated) {
-            window.location.hash = '#/login';
+        // Rutas protegidas (clientes)
+        const protectedRoutes = ['/profile', '/checkout'];
+        if (protectedRoutes.includes(path) && !state.isAuthenticated) {
+            window.location.hash = '#/store';
+            window.showAuthModal('login');
             return;
         }
 
-        // --- Protección de rutas admin/empleado ---
-        const adminRoutes = ['/pos', '/inventario', '/admin'];
+        // Protección de rutas admin/empleado
+        const adminRoutes = ['/pos', '/inventario', '/admin', '/reportes', '/verificar-qr'];
         if (adminRoutes.includes(path)) {
             const rol = state.user?.rol;
             if (rol !== 'admin' && rol !== 'empleado') {
@@ -67,17 +65,10 @@ export const Router = {
         }
 
         state.clearListeners();
-        // Limpiar función de búsqueda al cambiar de vista
         window._nbSearchProducts = null;
 
         // --- 2. LOGICA DE RENDERIZADO ---
-        if (path === '/' || path === '/login') {
-            renderLogin();
-        } 
-        else if (path === '/register') {
-            renderRegister();
-        }
-        else if (path === '/store') {
+        if (path === '/store') {
             renderStore();
         } 
         else if (storeMatch) {
@@ -107,16 +98,13 @@ export const Router = {
         }
         else if (path === '/mis-pedidos') {
             renderMisPedidos();
-    
         }
         else if (path === '/verificar-qr') {
             renderQRVerify();
         }
-        
         else {
             console.log('Ruta no encontrada:', path);
             renderStore(); 
         }
-        
     }
 };

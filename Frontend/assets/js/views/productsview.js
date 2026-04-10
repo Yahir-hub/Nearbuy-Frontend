@@ -3,70 +3,213 @@ import { ProductCard } from '../components/productCard.js';
 import { request, getProductosPorCategoria, getProductos } from '../api.js';
 import { state } from '../state.js';
 
-// Guard contra ejecuciones concurrentes
 let _currentRenderId = 0;
 
-export async function renderProducts(categoryId) {
+export async function renderProducts(categoryIdFromUrl) {
     const app = document.getElementById('app');
-    
-
-    // Cada llamada obtiene un ID único. Si otra llamada inicia antes de que esta termine,
-    // esta se descarta al detectar que su ID ya no es el actual.
     const myRenderId = ++_currentRenderId;
 
+    app.innerHTML = `
+        <style>
+            .products-layout {
+                display: flex;
+                flex-direction: row;
+                max-width: 1300px;
+                margin: 0 auto;
+                width: 100%;
+                padding: 40px 20px;
+                box-sizing: border-box;
+                gap: 40px;
+            }
+            .products-sidebar {
+                width: 250px;
+                background-color: #f9f9f9;
+                padding: 30px;
+                border-radius: 12px;
+                border: 1px solid #f0e6d2;
+                flex-shrink: 0;
+                align-self: flex-start;
+                position: sticky;
+                top: 120px;
+            }
+            .sidebar-categories-list {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .products-main {
+                flex: 1;
+                min-width: 0;
+            }
+            
+            /* Magia para Celular */
+            @media (max-width: 768px) {
+                .products-layout {
+                    flex-direction: column;
+                    padding: 20px 15px;
+                    gap: 20px;
+                }
+                .products-sidebar {
+                    width: 100%;
+                    position: static;
+                    padding: 15px;
+                }
+                .sidebar-categories-list {
+                    flex-direction: row;
+                    overflow-x: auto;
+                    padding-bottom: 10px;
+                }
+                .sidebar-categories-list > div {
+                    white-space: nowrap;
+                    flex-shrink: 0;
+                }
+                
+                /* AQUÍ ESTÁ LA MODIFICACIÓN: 2 productos por fila en celular */
+                .responsive-products-grid {
+                    grid-template-columns: repeat(2, 1fr) !important;
+                    gap: 15px !important;
+                }
+                .category-title {
+                    font-size: 1.8rem !important;
+                }
+            }
+        </style>
+
+        <div style="width: 100%; min-height: 100vh; display: flex; flex-direction: column; background-color: var(--nb-cream);">
+            <div id="nav-wrapper">${Navbar()}</div>
+            <div class="products-layout">
+                
+                <aside id="sidebar-container" class="products-sidebar">
+                    <p style="text-align: center; color: #999;"><i class="fas fa-spinner fa-spin"></i></p>
+                </aside>
+
+                <main class="products-main">
+                    <div style="display: flex; align-items: center; margin-bottom: 30px; border-bottom: 2px solid var(--nb-wine); padding-bottom: 15px;">
+                        <h1 id="category-title" class="category-title" style="color: var(--nb-wine); font-size: 2.2rem; margin: 0; text-transform: uppercase; letter-spacing: 1px;">Cargando...</h1>
+                    </div>
+                    
+                    <div id="products-grid-container" class="responsive-products-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 25px; width: 100%;">
+                        <p style="text-align: center; grid-column: 1/-1; color: #999;"><i class="fas fa-spinner fa-spin"></i> Cargando productos...</p>
+                    </div>
+                </main>
+            </div>
+        </div>
+    `;
+
     let allProducts = [];
+    let categories = state.categories || [];
     let currentCategoryName = 'Productos';
 
     try {
+        if (categories.length === 0) {
+            const catRes = await request('categorias');
+            categories = catRes?.items || [];
+            state.categories = categories;
+        }
+
         let response;
-
-        if (categoryId === 'all') {
+        if (categoryIdFromUrl === 'all') {
             response = await getProductos();
-            currentCategoryName = 'Todos los Productos';
+            currentCategoryName = 'TODOS';
         } else {
-            response = await getProductosPorCategoria(categoryId);
-
-            const catResponse = await request(`categorias/${categoryId}`);
-            if (catResponse && catResponse.nombre) {
-                currentCategoryName = catResponse.nombre;
-            }
+            const catIdNum = parseInt(categoryIdFromUrl);
+            response = await getProductosPorCategoria(catIdNum);
+            const catObj = categories.find(c => c.id === catIdNum);
+            if (catObj) currentCategoryName = catObj.nombre;
         }
 
-        // Si otra llamada a renderProducts ya inició, abortar esta
-        if (myRenderId !== _currentRenderId) {
-            console.log('[productsview] Render descartado (ID obsoleto)');
-            return;
-        }
+        if (myRenderId !== _currentRenderId) return;
 
         if (response && response.items) {
-            allProducts = response.items
-                .filter(p => p.stock > 0)
-                .map(p => ({
-                    id: p.id,
-                    name: p.nombre || p.descripcion || 'Sin nombre',
-                    price: p.precio,
-                    category: p.id_categoria,
-                    image: p.imagen_url,
-                    stock: p.stock
-                }));
+            allProducts = response.items.filter(p => p.stock > 0).map(p => ({
+                id: p.id,
+                name: p.nombre || p.descripcion || 'Sin nombre',
+                price: p.precio,
+                category: p.id_categoria,
+                image: p.imagen_url,
+                stock: p.stock
+            }));
             window.currentProducts = allProducts;
         }
     } catch (error) {
-        console.error('Error al cargar productos o categoría:', error);
-        // Si fue descartado durante el await, salir
         if (myRenderId !== _currentRenderId) return;
     }
 
-    // Verificar una vez más antes de renderizar el DOM
-    if (myRenderId !== _currentRenderId) return;
-
-    // Variable para guardar el texto de búsqueda actual
     let currentSearch = '';
 
-    // Función para renderizar solo el grid
+    function renderSidebar() {
+        const container = document.getElementById('sidebar-container');
+        if (!container) return;
+
+        const isAllActive = categoryIdFromUrl === 'all';
+        
+        const categoryIconMap = {
+            'LACTEOS': 'fa-cheese',
+            'ABARROTES': 'fa-shopping-basket',
+            'BEBIDAS': 'fa-glass-whiskey',
+            'REFRESCOS': 'fa-glass-whiskey',
+            'COCA COLA': 'fa-glass-whiskey',
+            'LIMPIEZA': 'fa-soap',
+            'FRUTAS': 'fa-apple-alt',
+            'VERDURA': 'fa-carrot',
+            'VERDURAS': 'fa-carrot',
+            'CARNES': 'fa-drumstick-bite',
+            'FARMACIA': 'fa-pills',
+            'MASCOTAS': 'fa-paw',
+            'BASICOS': 'fa-box',
+            'CIGARROS': 'fa-smoking'
+        };
+
+        let html = `
+            <div style="display: flex; align-items: center; margin-bottom: 20px; gap: 10px;">
+                <button onclick="window.location.hash='#/store'" style="
+                    background: none; border: none; font-size: 1.2rem; color: var(--nb-wine); 
+                    cursor: pointer; display: flex; align-items: center; padding: 0; 
+                " title="Volver a la tienda principal">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h3 style="color: var(--nb-text); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; margin: 0;">Categorías</h3>
+            </div>
+            <div class="sidebar-categories-list">
+                <div onclick="window.location.hash='#/store/all'" style="
+                    padding: 12px 15px; border-radius: 8px; cursor: pointer; 
+                    display: flex; align-items: center; gap: 12px; font-size: 0.95rem;
+                    background-color: ${isAllActive ? 'var(--nb-wine)' : 'transparent'};
+                    color: ${isAllActive ? 'white' : 'var(--nb-text)'};
+                    font-weight: ${isAllActive ? 'bold' : 'normal'};
+                ">
+                    <i class="fas fa-th-large" style="width: 20px; text-align: center; font-size: 1rem;"></i> Todas
+                </div>
+        `;
+
+        categories.forEach(cat => {
+            const isActive = String(cat.id) === String(categoryIdFromUrl);
+            const catNameUpper = (cat.nombre || '').toUpperCase().trim();
+            const icon = categoryIconMap[catNameUpper] || 'fa-tag';
+
+            html += `
+                <div onclick="window.location.hash='#/store/${cat.id}'" style="
+                    padding: 12px 15px; border-radius: 8px; cursor: pointer; 
+                    display: flex; align-items: center; gap: 12px; font-size: 0.95rem;
+                    background-color: ${isActive ? 'var(--nb-wine)' : 'transparent'};
+                    color: ${isActive ? 'white' : 'var(--nb-text)'};
+                    font-weight: ${isActive ? 'bold' : 'normal'};
+                ">
+                    <i class="fas ${icon}" style="width: 20px; text-align: center; font-size: 1rem;"></i> ${cat.nombre}
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
     function renderGrid() {
         const container = document.getElementById('products-grid-container');
+        const titleElement = document.getElementById('category-title');
         if (!container) return;
+
+        if (titleElement) titleElement.innerText = currentCategoryName;
 
         let filtered = allProducts;
         if (currentSearch) {
@@ -75,30 +218,26 @@ export async function renderProducts(categoryId) {
 
         container.innerHTML = filtered.length > 0
             ? filtered.map(p => ProductCard(p)).join('')
-            : '<p style="text-align:center; width:100%; font-size: 1.2rem; color: #666;">No se encontraron productos.</p>';
+            : '<div style="text-align: center; padding: 50px; background: white; border-radius: 12px; border: 2px dashed #ccc; grid-column: 1/-1;"><i class="fas fa-box-open" style="font-size: 3rem; color: #ccc; margin-bottom: 15px;"></i><p style="color: #666;">No hay productos disponibles de momento.</p></div>';
     }
 
-    // Función global que el Navbar usa para filtrar en vivo
+    renderSidebar();
+    renderGrid();
+
     window._nbSearchProducts = function(value) {
         currentSearch = (value || '').toLowerCase().trim();
         renderGrid();
-
-        // Sincronizar el input del navbar si existe
         const navInput = document.getElementById('nav-search-input');
         if (navInput && navInput.value !== value) {
             navInput.value = value || '';
         }
     };
 
-    // Suscripción: actualiza navbar + grid cuando cambia el state (carrito)
     state.subscribe(() => {
-        // Si este render ya fue reemplazado, no hacer nada
         if (myRenderId !== _currentRenderId) return;
-
         const navWrapper = document.getElementById('nav-wrapper');
         if (navWrapper) {
             navWrapper.innerHTML = Navbar();
-            // Restaurar texto de búsqueda en el input del navbar después de re-render
             if (currentSearch) {
                 const navInput = document.getElementById('nav-search-input');
                 if (navInput) navInput.value = currentSearch;
@@ -106,82 +245,4 @@ export async function renderProducts(categoryId) {
         }
         renderGrid();
     });
-
-    app.innerHTML = `
-        <div style="width: 100%; min-height: 100vh; display: flex; flex-direction: column;">
-            
-            <div id="nav-wrapper">
-                ${Navbar()}
-            </div>
-
-            <main style="
-                flex: 1;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                width: 100%;
-                padding-bottom: 50px;
-            ">
-                
-                <div style="
-                    width: 90%;
-                    max-width: 1200px;
-                    display: flex;
-                    align-items: center;
-                    margin-top: 2rem;
-                    margin-bottom: 2rem;
-                ">
-                    <button onclick="window.history.back()" style="
-                        background: none;
-                        border: none;
-                        font-size: 1.5rem;
-                        color: var(--nb-wine);
-                        cursor: pointer;
-                        display: flex;
-                        align-items: center;
-                        gap: 10px;
-                        font-weight: bold;
-                    ">
-                        <i class="fas fa-arrow-left"></i> Volver
-                    </button>
-                    
-                    <h2 style="
-                        margin-left: auto;
-                        margin-right: auto;
-                        text-transform: uppercase;
-                        color: var(--nb-wine);
-                        font-size: 2rem;
-                        letter-spacing: 2px;
-                    ">${currentCategoryName}</h2>
-                    
-                    <div style="width: 100px;"></div>
-                </div>
-
-                <div id="products-grid-container" style="
-                    display: grid;
-                    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-                    gap: 30px;
-                    width: 90%;
-                    max-width: 1200px;
-                ">
-                    ${
-                        allProducts.length > 0
-                            ? allProducts.map((p) => ProductCard(p)).join('')
-                            : '<p style="text-align:center; width:100%; font-size: 1.2rem; color: #666;">No hay productos disponibles en esta categoría.</p>'
-                    }
-                </div>
-
-            </main>
-        </div>
-    `;
-
-    // Si hay una búsqueda pendiente (viene de otra vista via Navbar), aplicarla
-    if (window._nbPendingSearch) {
-        const pendingQuery = window._nbPendingSearch;
-        window._nbPendingSearch = null;
-        // Aplicar búsqueda y poner el texto en el input
-        window._nbSearchProducts(pendingQuery);
-        const navInput = document.getElementById('nav-search-input');
-        if (navInput) navInput.value = pendingQuery;
-    }
 }

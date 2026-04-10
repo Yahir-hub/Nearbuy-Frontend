@@ -1,5 +1,3 @@
-
-
 import { state } from '../state.js';
 import { request } from '../api.js';
 import { Loader } from '../components/Loader.js';
@@ -39,9 +37,8 @@ export async function renderInventario() {
         ]);
         allProducts = prodRes?.items || [];
         allCategories = catRes?.items || [];
-        filteredProducts = prodRes?.items || [];
-        allCategories = catRes?.items || [];
-        filteredProducts = [];  // Vacío hasta que se filtre por categoría
+        // CORRECCIÓN 1: Iniciar mostrando todos los productos en lugar de un arreglo vacío
+        filteredProducts = [...allProducts];
         cajaDiaria = cajaRes?.total || 0;
     } catch (e) {
         console.error('Error cargando inventario:', e);
@@ -64,13 +61,10 @@ function renderView() {
     app.innerHTML = `
         <div style="display: flex; min-height: 100vh; width: 100vw; background-color: var(--nb-cream);">
             
-            <!-- SIDEBAR -->
             ${Sidebar('inventario', cajaDiaria)}
 
-            <!-- CONTENIDO PRINCIPAL -->
             <main style="flex: 1; padding: 2rem; overflow-y: auto;">
                 
-                <!-- HEADER -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                     <h1 style="color: var(--nb-wine); font-size: 2rem; margin: 0;">
                         <i class="fas fa-boxes"></i> Gestión de Inventario
@@ -94,10 +88,8 @@ function renderView() {
                     </div>
                 </div>
 
-                <!-- SECCIÓN DE CATEGORÍAS (toggle) -->
                 ${showCategorySection ? renderCategorySection() : ''}
 
-                <!-- FILTROS DE PRODUCTOS -->
                 <div style="display: flex; gap: 15px; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center;">
                     <input type="text" id="inv-search" placeholder="Buscar por descripción o código..." value="${searchQuery}" style="
                         flex: 1; min-width: 250px; padding: 10px 15px; border: 1px solid #ddd;
@@ -115,7 +107,6 @@ function renderView() {
                     <span style="color: #999; font-size: 0.85rem;">${filteredProducts.length} productos</span>
                 </div>
 
-                <!-- TABLA DE PRODUCTOS -->
                 <div style="background: white; border-radius: 12px; overflow: hidden; border: 1px solid #f0e6d2; box-shadow: 0 3px 10px rgba(0,0,0,0.04);">
                     <table style="width: 100%; border-collapse: collapse; text-align: left;">
                         <thead>
@@ -132,7 +123,7 @@ function renderView() {
                             ${filteredProducts.length === 0 ? `
                                 <tr><td colspan="6" style="padding: 40px; text-align: center; color: #ccc;">
                                     <i class="fas fa-filter" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
-                                    ${(!filterCategoryId && !searchQuery) ? 'Selecciona una categoría o busca un producto para comenzar' : 'No se encontraron productos'}
+                                    No se encontraron productos
                                 </td></tr>
                             ` : filteredProducts.map(p => {
                                 const cat = allCategories.find(c => c.id === p.id_categoria);
@@ -179,15 +170,11 @@ function renderView() {
             </main>
         </div>
 
-        <!-- MODAL DE PRODUCTO -->
         ${showProductModal ? renderProductModal() : ''}
     `;
 
-    // --- EVENTOS ---
     bindEvents();
 }
-
-
 
 function renderCategorySection() {
     return `
@@ -216,7 +203,6 @@ function renderCategorySection() {
         </div>
     `;
 }
-
 
 function renderProductModal() {
     const isEdit = editingProduct !== null;
@@ -292,13 +278,9 @@ function renderProductModal() {
     `;
 }
 
-
 function applyFilters() {
-    // No mostrar productos hasta que se seleccione categoría o se busque algo
-    if (!filterCategoryId && !searchQuery) {
-        filteredProducts = [];
-        return;
-    }
+    // CORRECCIÓN 2: Eliminamos el "if" que vaciaba la lista al estar en "Todas las categorías". 
+    // Ahora simplemente filtra el array original basado en lo que se seleccione.
     filteredProducts = allProducts.filter(p => {
         const matchSearch = !searchQuery || 
             (p.descripcion && p.descripcion.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -308,9 +290,7 @@ function applyFilters() {
     });
 }
 
-
 function bindEvents() {
-    // Búsqueda
     const searchInput = document.getElementById('inv-search');
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
@@ -320,7 +300,6 @@ function bindEvents() {
         });
     }
 
-    // Filtro categoría
     const filterSelect = document.getElementById('inv-filter-cat');
     if (filterSelect) {
         filterSelect.addEventListener('change', (e) => {
@@ -330,7 +309,6 @@ function bindEvents() {
         });
     }
 
-    // Nuevo producto
     const btnNew = document.getElementById('btn-new-product');
     if (btnNew) {
         btnNew.onclick = () => {
@@ -340,7 +318,6 @@ function bindEvents() {
         };
     }
 
-    // Toggle categorías
     const btnToggleCat = document.getElementById('btn-toggle-categories');
     if (btnToggleCat) {
         btnToggleCat.onclick = () => {
@@ -349,7 +326,6 @@ function bindEvents() {
         };
     }
 
-    // Cerrar modal
     const btnClose = document.getElementById('btn-close-modal');
     if (btnClose) {
         btnClose.onclick = () => {
@@ -359,7 +335,6 @@ function bindEvents() {
         };
     }
 
-    // Click overlay para cerrar
     const overlay = document.getElementById('product-modal-overlay');
     if (overlay) {
         overlay.onclick = (e) => {
@@ -371,7 +346,6 @@ function bindEvents() {
         };
     }
 
-    // Guardar producto
     const btnSave = document.getElementById('btn-save-product');
     if (btnSave) {
         btnSave.onclick = async () => {
@@ -384,7 +358,6 @@ function bindEvents() {
             const tags = document.getElementById('pm-tags').value.trim();
             const imagen_url = document.getElementById('pm-imagen').value.trim();
 
-            // Validaciones básicas
             if (!nombre || nombre.length < 3) { Modal.show('Error', 'El nombre debe tener al menos 3 caracteres', 'error'); return; }
             if (!precio || precio <= 0) { Modal.show('Error', 'El precio debe ser mayor a 0', 'error'); return; }
             if (isNaN(stock) || stock < 0) { Modal.show('Error', 'El stock no puede ser negativo', 'error'); return; }
@@ -401,7 +374,6 @@ function bindEvents() {
                     await request('productos', 'POST', payload);
                     Modal.show('Éxito', 'Producto creado correctamente', 'success');
                 }
-                // Recargar datos
                 const prodRes = await request('productos?limit=500');
                 allProducts = prodRes?.items || [];
                 applyFilters();
@@ -415,7 +387,6 @@ function bindEvents() {
         };
     }
 
-    // Editar producto
     document.querySelectorAll('.btn-edit-prod').forEach(btn => {
         btn.onclick = () => {
             const id = parseInt(btn.dataset.id);
@@ -425,7 +396,6 @@ function bindEvents() {
         };
     });
 
-    // Eliminar producto
     document.querySelectorAll('.btn-delete-prod').forEach(btn => {
         btn.onclick = async () => {
             const id = parseInt(btn.dataset.id);
@@ -445,9 +415,6 @@ function bindEvents() {
         };
     });
 
-    // --- CATEGORÍAS ---
-
-    // Nueva categoría
     const btnNewCat = document.getElementById('btn-new-category');
     if (btnNewCat) {
         btnNewCat.onclick = async () => {
@@ -468,7 +435,6 @@ function bindEvents() {
         };
     }
 
-    // Editar categoría
     document.querySelectorAll('.btn-edit-cat').forEach(btn => {
         btn.onclick = async () => {
             const id = parseInt(btn.dataset.id);
@@ -489,7 +455,6 @@ function bindEvents() {
         };
     });
 
-    // Eliminar categoría
     document.querySelectorAll('.btn-delete-cat').forEach(btn => {
         btn.onclick = async () => {
             const id = parseInt(btn.dataset.id);

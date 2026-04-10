@@ -4,15 +4,17 @@
 html, body {
     margin: 0 !important;
     padding: 0 !important;
-    width: 100vw; /* Ancho de la ventana */
+    width: 100vw; 
     max-width: 100vw;
-    overflow-x: hidden; /* Evita el scroll horizontal */
+    overflow-x: hidden; 
     background-color: var(--nb-cream, #fffbf0);
+    /* 👇 PONEMOS LA FUENTE AQUÍ 👇 */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 /* 2. EL CONTENEDOR PRINCIPAL */
 #app {
-    width: 100vw; /* Asegura que el contenedor hijo también sea 100% ancho */
+    width: 100vw; 
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -21,7 +23,6 @@ html, body {
 }
 
 /* 3. REGLA MAESTRA PARA ELEMENTOS FULL-WIDTH */
-/* Esto forzará al navbar a pegarse a los bordes */
 .full-width {
     width: 100vw;
     margin-left: 50%;
@@ -31,5 +32,5 @@ html, body {
 /* 4. RESET DE ELEMENTOS */
 *, *::before, *::after {
     box-sizing: border-box;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    /* 👇 BORRAMOS LA FUENTE DE AQUÍ 👇 */
 }

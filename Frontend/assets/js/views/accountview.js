@@ -2,30 +2,33 @@ import { Navbar } from '../components/Navbar.js';
 import { state } from '../state.js';
 import { request } from '../api.js';
 import { Sidebar } from '../components/Sidebar.js';
+import { AuthService } from '../auth.js'; // Añadido para validar la contraseña
 
 export async function renderProfile() {
     const app = document.getElementById('app');
+    
+    // Si no hay sesión (usuario borrado o no logueado), redirigir
+    if (!state.isAuthenticated || !state.user) {
+        window.location.hash = '#/login';
+        return;
+    }
+
     const user = state.user || {};
     const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
     const isAdmin    = user.rol === 'admin';
     const isEmpleado = user.rol === 'empleado';
     const isStaff    = isAdmin || isEmpleado;
 
-    // ── Estado local ──────────────────────────────────────────────
-    let usuarios      = [];      // solo admin
-    let pedidosStaff  = [];      // solo empleado
+    let usuarios      = [];      
+    let pedidosStaff  = [];      
     let loadingExtra  = true;
     let pedidosCliente = [];
   
-    // ── Helpers ───────────────────────────────────────────────────
     function formatTelefono(tel) {
         if (!tel) return 'No registrado';
         const c = tel.replace(/\D/g, '');
         return c.length === 10 ? `${c.slice(0,3)} ${c.slice(3,6)} ${c.slice(6)}` : tel;
     }
-
-
-
 
     function getRolBadge(rol) {
         const roles = {
@@ -34,17 +37,11 @@ export async function renderProfile() {
             cliente:  { bg: '#e8f5e9', color: '#2e7d32', label: 'Cliente',       icon: 'fa-user'      }
         };
         const r = roles[rol] || roles.cliente;
-        return `<span style="
-            display:inline-flex; align-items:center; gap:6px;
-            background:${r.bg}; color:${r.color};
-            padding:4px 14px; border-radius:50px;
-            font-size:0.78rem; font-weight:700;
-            text-transform:uppercase; letter-spacing:0.5px;">
+        return `<span style="display:inline-flex; align-items:center; gap:6px; background:${r.bg}; color:${r.color}; padding:4px 14px; border-radius:50px; font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
             <i class="fas ${r.icon}" style="font-size:0.72rem;"></i>${r.label}
         </span>`;
     }
 
-    // ── Cargar datos extra según rol ──────────────────────────────
     async function loadExtra() {
         loadingExtra = true;
         try {
@@ -54,11 +51,7 @@ export async function renderProfile() {
             } else if (isEmpleado) {
                 const res = await request('pedidos/admin?limit=50');
                 const todos = res?.items || [];
-                // Solo pedidos donde este empleado participó
-                pedidosStaff = todos.filter(p =>
-                    p.id_empleado_preparador === user.id ||
-                    p.id_empleado_entrega    === user.id
-                );
+                pedidosStaff = todos.filter(p => p.id_empleado_preparador === user.id || p.id_empleado_entrega === user.id);
             }
         } catch (e) {
             console.error('Error cargando datos extra:', e);
@@ -69,422 +62,172 @@ export async function renderProfile() {
     }
 
     async function loadPedidos() {
+        if (!state.user || !state.user.id) {
+            pedidosCliente = [];
+            render();
+            return;
+        }
         const res = await request(`pedidos/mis-pedidos?id_usuario=${state.user.id}&limit=5&offset=0`);
         pedidosCliente = res?.items || [];
         render();
     }
 
-    // ── Tarjeta de perfil ─────────────────────────────────────────
     function renderProfileCard() {
         const isEditing = window._profileEditing || false;
         return `
-        <div style="
-            background:white; border-radius:20px; padding:35px;
-            box-shadow:0 5px 20px rgba(0,0,0,0.05);
-            border:1px solid #f0e6d2; margin-bottom:25px;
-            display:flex; gap:30px; align-items:flex-start;
-        ">
-            <!-- Avatar -->
-            <div style="
-                display:flex; flex-direction:column; align-items:center;
-                min-width:190px; padding-right:30px;
-                border-right:2px solid #f0e6d2;
-            ">
+        <div class="profile-main-card" style="background:white; border-radius:20px; padding:35px; box-shadow:0 5px 20px rgba(0,0,0,0.05); border:1px solid #f0e6d2; margin-bottom:25px; display:flex; gap:30px; align-items:flex-start;">
+            <div style="display:flex; flex-direction:column; align-items:center; min-width:190px; padding-right:30px; border-right:2px solid #f0e6d2;">
                 <div style="position:relative; margin-bottom:18px;">
-                    <div style="
-                        width:110px; height:110px; border-radius:50%;
-                        border:3px solid var(--nb-wine);
-                        display:flex; align-items:center; justify-content:center;
-                        background:#fdf8f0;">
+                    <div style="width:110px; height:110px; border-radius:50%; border:3px solid var(--nb-wine); display:flex; align-items:center; justify-content:center; background:#fdf8f0;">
                         <i class="fas fa-user" style="font-size:3rem; color:#d4c4b0;"></i>
                     </div>
-                    <div style="
-                        position:absolute; bottom:2px; right:2px;
-                        width:32px; height:32px; background:var(--nb-wine);
-                        border-radius:50%; display:flex; align-items:center; justify-content:center;
-                        border:3px solid white;">
-                        <i class="fas fa-camera" style="color:white; font-size:0.75rem;"></i>
+                    <div style="position:absolute; bottom:0px; right:-5px; width:40px; height:40px; background:white; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.15); overflow:hidden;">
+                        <img src="assets/img/insignia.jpg" alt="Verificado" style="width:100%; height:100%; object-fit:cover;">
                     </div>
                 </div>
                 <h3 style="margin:0 0 8px 0; color:var(--nb-text); font-size:1.15rem; font-weight:800; text-align:center;">
                     ${user.nombre_usuario || 'Usuario'}
                 </h3>
                 ${getRolBadge(user.rol)}
-                <span style="
-                    display:inline-flex; align-items:center; gap:5px;
-                    background:var(--nb-wine); color:white;
-                    padding:6px 16px; border-radius:50px;
-                    font-size:0.72rem; font-weight:700;
-                    text-transform:uppercase; letter-spacing:0.5px; margin-top:12px;">
+                <span style="display:inline-flex; align-items:center; gap:5px; background:var(--nb-wine); color:white; padding:6px 16px; border-radius:50px; font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-top:12px;">
                     <i class="fas fa-award" style="font-size:0.7rem;"></i> ${isEmpleado ? 'EMPLEADO NEARBUY' : isAdmin ? 'ADMIN NEARBUY' : 'MIEMBRO NEARBUY'}
                 </span>
             </div>
 
-            <!-- Info personal -->
-            <div style="flex:1; min-width:0;">
+            <div style="flex:1; min-width:0; width: 100%;">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
                     <h2 style="margin:0; color:var(--nb-wine); font-size:1.4rem; font-weight:800;">Información Personal</h2>
-                    ${!isEditing ? `
-                    <button onclick="window._profileStartEdit()" style="
-                        background:none; border:2px solid var(--nb-wine); color:var(--nb-wine);
-                        border-radius:50px; padding:6px 18px; font-size:0.8rem;
-                        font-weight:700; cursor:pointer; text-transform:uppercase;">
-                        <i class="fas fa-pen"></i> Editar
-                    </button>` : ''}
+                    ${!isEditing ? `<button onclick="window._profileStartEdit()" style="background:none; border:2px solid var(--nb-wine); color:var(--nb-wine); border-radius:50px; padding:6px 18px; font-size:0.8rem; font-weight:700; cursor:pointer; text-transform:uppercase;"><i class="fas fa-pen"></i> Editar</button>` : ''}
                 </div>
 
                 ${isEditing ? `
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
-                    <div>
-                        <label style="display:block; font-size:0.7rem; font-weight:700; color:var(--nb-wine); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">NOMBRE DE USUARIO</label>
-                        <input id="edit-nombre" value="${user.nombre_usuario || ''}" style="
-                            width:100%; box-sizing:border-box;
-                            background:#faf7f2; border:2px solid var(--nb-wine);
-                            border-radius:10px; padding:12px 15px;
-                            font-size:0.95rem; color:var(--nb-text); font-weight:500;">
-                    </div>
-                    <div>
-                        <label style="display:block; font-size:0.7rem; font-weight:700; color:var(--nb-wine); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">TELÉFONO</label>
-                        <input id="edit-telefono" value="${user.telefono || ''}" style="
-                            width:100%; box-sizing:border-box;
-                            background:#faf7f2; border:2px solid var(--nb-wine);
-                            border-radius:10px; padding:12px 15px;
-                            font-size:0.95rem; color:var(--nb-text); font-weight:500;">
-                    </div>
+                <div class="mobile-stack" style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+                    <div><label style="display:block; font-size:0.7rem; font-weight:700; color:var(--nb-wine); text-transform:uppercase; margin-bottom:6px;">NOMBRE DE USUARIO</label><input id="edit-nombre" value="${user.nombre_usuario || ''}" style="width:100%; box-sizing:border-box; background:#faf7f2; border:2px solid var(--nb-wine); border-radius:10px; padding:12px 15px; font-size:0.95rem; color:var(--nb-text); font-weight:500;"></div>
+                    <div><label style="display:block; font-size:0.7rem; font-weight:700; color:var(--nb-wine); text-transform:uppercase; margin-bottom:6px;">TELÉFONO</label><input id="edit-telefono" value="${user.telefono || ''}" style="width:100%; box-sizing:border-box; background:#faf7f2; border:2px solid var(--nb-wine); border-radius:10px; padding:12px 15px; font-size:0.95rem; color:var(--nb-text); font-weight:500;"></div>
                 </div>
-                <div style="display:flex; gap:10px; margin-top:15px;">
-                    <button onclick="window._profileSaveEdit()" style="
-                        flex:1; background:var(--nb-wine); color:white;
-                        border:none; border-radius:50px; padding:12px;
-                        font-size:0.9rem; font-weight:700; cursor:pointer; text-transform:uppercase;">
-                        <i class="fas fa-check"></i> Guardar
-                    </button>
-                    <button onclick="window._profileCancelEdit()" style="
-                        flex:1; background:none; color:#666;
-                        border:2px solid #ddd; border-radius:50px; padding:12px;
-                        font-size:0.9rem; font-weight:700; cursor:pointer; text-transform:uppercase;">
-                        Cancelar
-                    </button>
+                <div class="mobile-actions" style="display:flex; gap:10px; margin-top:15px;">
+                    <button onclick="window._profileSaveEdit()" style="flex:1; background:var(--nb-wine); color:white; border:none; border-radius:50px; padding:12px; font-size:0.9rem; font-weight:700; cursor:pointer; text-transform:uppercase;"><i class="fas fa-check"></i> Guardar</button>
+                    <button onclick="window._profileCancelEdit()" style="flex:1; background:none; color:#666; border:2px solid #ddd; border-radius:50px; padding:12px; font-size:0.9rem; font-weight:700; cursor:pointer; text-transform:uppercase;">Cancelar</button>
                 </div>
                 ` : `
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
-                    <div>
-                        <label style="display:block; font-size:0.7rem; font-weight:700; color:var(--nb-wine); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">NOMBRE DE USUARIO</label>
-                        <div style="background:#faf7f2; border:1px solid #f0e6d2; border-radius:10px; padding:12px 15px; font-size:0.95rem; color:var(--nb-text); font-weight:500;">
-                            ${user.nombre_usuario || 'N/A'}
-                        </div>
-                    </div>
-                    <div>
-                        <label style="display:block; font-size:0.7rem; font-weight:700; color:var(--nb-wine); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">TELÉFONO</label>
-                        <div style="background:#faf7f2; border:1px solid #f0e6d2; border-radius:10px; padding:12px 15px; font-size:0.95rem; color:var(--nb-text); font-weight:500;">
-                            ${formatTelefono(user.telefono)}
-                        </div>
-                    </div>
+                <div class="mobile-stack" style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+                    <div><label style="display:block; font-size:0.7rem; font-weight:700; color:var(--nb-wine); text-transform:uppercase; margin-bottom:6px;">NOMBRE DE USUARIO</label><div style="background:#faf7f2; border:1px solid #f0e6d2; border-radius:10px; padding:12px 15px; font-size:0.95rem; color:var(--nb-text); font-weight:500;">${user.nombre_usuario || 'N/A'}</div></div>
+                    <div><label style="display:block; font-size:0.7rem; font-weight:700; color:var(--nb-wine); text-transform:uppercase; margin-bottom:6px;">TELÉFONO</label><div style="background:#faf7f2; border:1px solid #f0e6d2; border-radius:10px; padding:12px 15px; font-size:0.95rem; color:var(--nb-text); font-weight:500;">${formatTelefono(user.telefono)}</div></div>
                 </div>
                 `}
             </div>
         </div>`;
     }
 
-    // ── Sección Admin: gestión de usuarios ────────────────────────
     function renderAdminPanel() {
-        if (loadingExtra) return `
-            <div style="background:white; border-radius:16px; padding:2rem; border:1px solid #f0e6d2; text-align:center; color:#999; margin-bottom:25px;">
-                <i class="fas fa-spinner fa-spin" style="font-size:1.5rem; margin-bottom:8px; display:block;"></i>
-                Cargando usuarios...
-            </div>`;
-
-        const rolColors = {
-            admin:    { bg:'#e3f2fd', color:'#1565c0' },
-            empleado: { bg:'#fff3e0', color:'#e65100' },
-            cliente:  { bg:'#f5f5f5', color:'#666'    }
-        };
-
+        if (loadingExtra) return `<div style="text-align:center; padding:2rem;"><i class="fas fa-spinner fa-spin"></i> Cargando usuarios...</div>`;
         return `
-        <div style="background:white; border-radius:16px; padding:1.5rem; border:1px solid #f0e6d2; box-shadow:0 2px 8px rgba(0,0,0,0.04); margin-bottom:25px;">
-            <h3 style="color:var(--nb-wine); margin:0 0 1.2rem 0; font-size:1rem; text-transform:uppercase; letter-spacing:1px;">
-                <i class="fas fa-users"></i> Gestión de Usuarios
-                <span style="font-size:0.75rem; color:#999; font-weight:normal; margin-left:8px;">${usuarios.length} registrados</span>
-            </h3>
-            <div style="overflow-x:auto;">
-                <table style="width:100%; border-collapse:collapse; font-size:0.88rem;">
-                    <thead>
-                        <tr style="border-bottom:2px solid var(--nb-wine); color:var(--nb-wine); font-size:0.75rem; text-transform:uppercase;">
-                            <th style="padding:10px 12px; text-align:left;">Usuario</th>
-                            <th style="padding:10px 12px; text-align:left;">Teléfono</th>
-                            <th style="padding:10px 12px; text-align:center;">Rol</th>
-                            <th style="padding:10px 12px; text-align:center;">Cambiar rol</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${usuarios.map(u => {
-                            const rc = rolColors[u.rol] || rolColors.cliente;
-                            const isSelf = u.id === user.id;
-                            return `
-                            <tr style="border-bottom:1px solid #f5f0e8;">
-                                <td style="padding:10px 12px; font-weight:600; color:var(--nb-text);">
-                                    ${u.nombre_usuario}
-                                    ${isSelf ? '<span style="font-size:0.7rem; color:#999; font-weight:normal;"> (tú)</span>' : ''}
-                                </td>
-                                <td style="padding:10px 12px; color:#888;">${formatTelefono(u.telefono)}</td>
-                                <td style="padding:10px 12px; text-align:center;">
-                                    <span style="
-                                        padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:700;
-                                        background:${rc.bg}; color:${rc.color}; text-transform:uppercase;">
-                                        ${u.rol}
-                                    </span>
-                                </td>
-                                <td style="padding:10px 12px; text-align:center;">
-                                    ${isSelf ? '<em style="color:#ccc; font-size:0.8rem;">—</em>' : `
-                                    <select class="change-role-select" data-id="${u.id}" style="
-                                        padding:6px 10px; border:1px solid #ede0cc; border-radius:8px;
-                                        font-size:0.8rem; background:#fdf3e6; color:var(--nb-text);
-                                        cursor:pointer; outline:none;">
-                                        <option value="cliente"  ${u.rol === 'cliente'  ? 'selected' : ''}>Cliente</option>
-                                        <option value="empleado" ${u.rol === 'empleado' ? 'selected' : ''}>Empleado</option>
-                                        <option value="admin"    ${u.rol === 'admin'    ? 'selected' : ''}>Admin</option>
-                                    </select>`}
-                                </td>
-                            </tr>`;
-                        }).join('')}
-                    </tbody>
-                </table>
-            </div>
+        <div style="background:white; border-radius:16px; padding:1.5rem; border:1px solid #f0e6d2; margin-bottom:25px;">
+            <h3 style="color:var(--nb-wine); margin:0 0 1.2rem 0; font-size:1rem; text-transform:uppercase;"><i class="fas fa-users"></i> Gestión de Usuarios</h3>
+            <table style="width:100%; border-collapse:collapse; font-size:0.88rem;">
+                <tr style="border-bottom:2px solid var(--nb-wine); color:var(--nb-wine);"><th style="padding:10px; text-align:left;">Usuario</th><th style="padding:10px; text-align:center;">Rol</th></tr>
+                ${usuarios.map(u => `
+                <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:10px;">${u.nombre_usuario}</td>
+                    <td style="padding:10px; text-align:center; font-weight:bold; text-transform:uppercase;">${u.rol}</td>
+                </tr>`).join('')}
+            </table>
         </div>`;
     }
 
-    // ── Sección Empleado: stats de actividad ──────────────────────
     function renderEmpleadoStats() {
-        if (loadingExtra) return `
-            <div style="background:white; border-radius:16px; padding:2rem; border:1px solid #f0e6d2; text-align:center; color:#999; margin-bottom:25px;">
-                <i class="fas fa-spinner fa-spin" style="font-size:1.5rem; margin-bottom:8px; display:block;"></i>
-                Cargando actividad...
-            </div>`;
-
+        if (loadingExtra) return `<div style="text-align:center;"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>`;
         const preparados = pedidosStaff.filter(p => p.id_empleado_preparador === user.id).length;
-        const entregados = pedidosStaff.filter(p => p.id_empleado_entrega    === user.id).length;
-
-        const stats = [
-            { icon:'fa-fire',      color:'#1565c0', value: preparados,           label:'Pedidos preparados' },
-            { icon:'fa-box',       color:'#2e7d32', value: entregados,           label:'Pedidos entregados' },
-        ];
-
         return `
-        <div style="background:white; border-radius:16px; padding:1.5rem; border:1px solid #f0e6d2; box-shadow:0 2px 8px rgba(0,0,0,0.04); margin-bottom:25px;">
-            <h3 style="color:var(--nb-wine); margin:0 0 1.2rem 0; font-size:1rem; text-transform:uppercase; letter-spacing:1px;">
-                <i class="fas fa-chart-line"></i> Mi Actividad Reciente
-            <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:12px;">
-            
-                ${stats.map(s => `
-                <div style="background:#fdf8f0; border-radius:12px; padding:16px; text-align:center; border:1px solid #f0e6d2;">
-                    <i class="fas ${s.icon}" style="font-size:1.4rem; color:${s.color}; margin-bottom:8px;"></i>
-                    <p style="margin:0; font-weight:900; font-size:1.2rem; color:var(--nb-text);">${s.value}</p>
-                    <p style="margin:4px 0 0 0; font-size:0.72rem; color:#999; text-transform:uppercase; letter-spacing:0.5px;">${s.label}</p>
-                </div>`).join('')}
-            </div>
-            <div style="margin-top:12px; text-align:center;">
-                <button onclick="window.location.hash='#/mis-pedidos'" style="
-                    padding:8px 20px; background:none; color:var(--nb-wine);
-                    border:2px solid var(--nb-wine); border-radius:20px; cursor:pointer;
-                    font-weight:bold; font-size:0.85rem;">
-                    <i class="fas fa-clipboard-list"></i> Ver todos los pedidos
-                </button>
+        <div style="background:white; border-radius:16px; padding:1.5rem; border:1px solid #f0e6d2; margin-bottom:25px;">
+            <h3 style="color:var(--nb-wine); margin:0 0 1.2rem 0; font-size:1rem; text-transform:uppercase;"><i class="fas fa-chart-line"></i> Mi Actividad</h3>
+            <div style="background:#fdf8f0; border-radius:12px; padding:16px; text-align:center;">
+                <i class="fas fa-fire" style="font-size:1.4rem; color:#1565c0; margin-bottom:8px;"></i>
+                <p style="margin:0; font-weight:900; font-size:1.2rem;">${preparados}</p>
+                <p style="margin:0; font-size:0.72rem; color:#999; text-transform:uppercase;">Pedidos preparados</p>
             </div>
         </div>`;
     }
 
     function renderClienteSections(pedidosCliente) {
-        const totalPedidos  = pedidosCliente.length;
-        const totalGastado  = pedidosCliente.reduce((s, p) => s + (p.total || 0), 0);
-        const enProceso     = pedidosCliente.filter(p => p.estatus === 'pendiente' || p.estatus === 'preparando').length;
-
-        const stats = [
-            { icon:'fa-shopping-bag', color:'var(--nb-wine)', value: loadingExtra ? '...' : totalPedidos,           label:'Pedidos recientes' },
-            { icon:'fa-wallet',       color:'#2e7d32',        value: loadingExtra ? '...' : money.format(totalGastado), label:'Total gastado'     },
-            { icon:'fa-hourglass-half', color:'#e65100',      value: loadingExtra ? '...' : enProceso,              label:'En proceso'        }
-        ];
-
-        const links = [
-            { hash:'#/store',       icon:'fa-store',          label:'Ir a la Tienda', color:'#1565c0' },
-            { hash:'#/cart',        icon:'fa-shopping-cart',  label:'Mi Carrito',     color:'#2e7d32' },
-            { hash:'#/mis-pedidos', icon:'fa-clipboard-list', label:'Mis Pedidos',    color:'#e65100' }
-        ];
-
-        const estatusColors = {
-            pendiente:  { bg:'#fff3e0', color:'#e65100', icon:'fa-clock',        label:'Pendiente'  },
-            preparando: { bg:'#e3f2fd', color:'#1565c0', icon:'fa-fire',         label:'Preparando' },
-            listo:      { bg:'#e8f5e9', color:'#2e7d32', icon:'fa-check-circle', label:'Listo'      },
-            entregado:  { bg:'#c8e6c9', color:'#1b5e20', icon:'fa-box',          label:'Entregado'  },
-            cancelado:  { bg:'#ffebee', color:'#c62828', icon:'fa-times-circle', label:'Cancelado'  }
-        };
-
-        function formatFechaCompleta(f) {
-            if (!f) return 'Sin fecha';
-            return new Date(f).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
-        }
-
         return `
-        <!-- Stats -->
-        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:15px; margin-bottom:25px;">
-            ${stats.map(s => `
-            <div style="background:white; border-radius:16px; padding:20px 15px; text-align:center; border:1px solid #f0e6d2; box-shadow:0 2px 8px rgba(0,0,0,0.03);">
-                <i class="fas ${s.icon}" style="font-size:1.4rem; color:${s.color}; margin-bottom:8px;"></i>
-                <p style="margin:0; font-weight:900; font-size:1.3rem; color:var(--nb-text);">${s.value}</p>
-                <p style="margin:4px 0 0 0; font-size:0.75rem; color:#999; text-transform:uppercase; letter-spacing:0.5px;">${s.label}</p>
-            </div>`).join('')}
+        <h3 style="color:var(--nb-wine); font-size:0.9rem; margin-bottom:12px; text-transform:uppercase;">Accesos Rápidos</h3>
+        <div class="mobile-stack" style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:25px;">
+            <div onclick="window.location.hash='#/store'" style="background:white; border-radius:14px; padding:18px 12px; text-align:center; border:1px solid #f0e6d2; cursor:pointer;"><i class="fas fa-store" style="font-size:1.5rem; color:#1565c0; margin-bottom:8px;"></i><p style="margin:0; font-size:0.85rem; font-weight:600;">Tienda</p></div>
+            <div onclick="window.location.hash='#/cart'" style="background:white; border-radius:14px; padding:18px 12px; text-align:center; border:1px solid #f0e6d2; cursor:pointer;"><i class="fas fa-shopping-cart" style="font-size:1.5rem; color:#2e7d32; margin-bottom:8px;"></i><p style="margin:0; font-size:0.85rem; font-weight:600;">Carrito</p></div>
+            <div onclick="window.location.hash='#/mis-pedidos'" style="background:white; border-radius:14px; padding:18px 12px; text-align:center; border:1px solid #f0e6d2; cursor:pointer;"><i class="fas fa-clipboard-list" style="font-size:1.5rem; color:#e65100; margin-bottom:8px;"></i><p style="margin:0; font-size:0.85rem; font-weight:600;">Mis Pedidos</p></div>
         </div>
-
-        <!-- Accesos rápidos -->
-        <h3 style="color:var(--nb-wine); font-size:0.9rem; margin-bottom:12px; text-transform:uppercase; letter-spacing:1px;">
-            <i class="fas fa-bolt" style="margin-right:6px;"></i> Accesos Rápidos
-        </h3>
-        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:25px;">
-            ${links.map(l => `
-            <div onclick="window.location.hash='${l.hash}'" style="
-                background:white; border-radius:14px; padding:18px 12px;
-                text-align:center; border:1px solid #f0e6d2; cursor:pointer;
-                box-shadow:0 2px 8px rgba(0,0,0,0.03);"
-                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(0,0,0,0.08)'"
-                onmouseout="this.style.transform='none'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.03)'">
-                <i class="fas ${l.icon}" style="font-size:1.5rem; color:${l.color}; margin-bottom:8px;"></i>
-                <p style="margin:0; font-size:0.85rem; font-weight:600; color:var(--nb-text);">${l.label}</p>
-            </div>`).join('')}
-        </div>
-
-        <!-- Pedidos recientes -->
-        <div style="background:white; border-radius:20px; padding:25px; box-shadow:0 5px 20px rgba(0,0,0,0.05); border:1px solid #f0e6d2; margin-bottom:25px;">
-            <h3 style="color:var(--nb-wine); font-size:0.9rem; margin:0 0 15px 0; text-transform:uppercase; letter-spacing:1px;">
-                <i class="fas fa-history" style="margin-right:6px;"></i> Mis Pedidos Recientes
-            </h3>
-            ${loadingExtra ? `
-                <div style="text-align:center; padding:30px 0; color:#999;">
-                    <i class="fas fa-spinner fa-spin" style="font-size:1.5rem; margin-bottom:8px; display:block;"></i>
-                    Cargando pedidos...
-                </div>` 
-            : pedidosCliente.length === 0 ? `
-                <div style="text-align:center; padding:30px 0;">
-                    <i class="fas fa-box-open" style="font-size:2.5rem; color:#eaddc5; margin-bottom:12px;"></i>
-                    <p style="color:#999; font-size:0.95rem;">Aún no tienes pedidos</p>
-                    <button onclick="window.location.hash='#/store'" style="
-                        margin-top:12px; padding:10px 20px; background:var(--nb-wine); color:white;
-                        border:none; border-radius:20px; cursor:pointer; font-size:0.85rem; font-weight:bold;">
-                        Explorar Tienda
-                    </button>
-                </div>` 
-            : `
-                <div style="display:flex; flex-direction:column; gap:10px;">
-                    ${pedidosCliente.map(p => {
-                        const est = estatusColors[p.estatus] || { bg:'#f5f5f5', color:'#666', icon:'fa-question', label:p.estatus };
-                        return `
-                        <div style="background:white; border-radius:14px; border:1px solid #f0e6d2; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.03);">
-                            <div style="padding:15px 18px; display:flex; align-items:center; gap:12px;">
-                                <div style="width:40px; height:40px; background:${est.bg}; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                                    <i class="fas ${est.icon}" style="color:${est.color}; font-size:1rem;"></i>
-                                </div>
-                                <div style="flex:1; min-width:0;">
-                                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                                        <span style="font-weight:800; color:var(--nb-wine); font-size:0.95rem;">#${p.id}</span>
-                                        <span style="background:${est.bg}; color:${est.color}; padding:2px 10px; border-radius:50px; font-size:0.7rem; font-weight:700; text-transform:uppercase;">${est.label}</span>
-                                    </div>
-                                    <span style="color:#999; font-size:0.8rem;">${formatFechaCompleta(p.fecha_creacion)}</span>
-                                </div>
-                                <span style="font-weight:900; color:var(--nb-wine); font-size:1.05rem; flex-shrink:0;">${money.format(p.total)}</span>
-                            </div>
-                        </div>`;
-                    }).join('')}
+        <div style="background:white; border-radius:20px; padding:25px; border:1px solid #f0e6d2; margin-bottom:25px;">
+            <h3 style="color:var(--nb-wine); font-size:0.9rem; margin:0 0 15px 0; text-transform:uppercase;"><i class="fas fa-history"></i> Mis Pedidos Recientes</h3>
+            ${pedidosCliente.length === 0 ? `<p style="text-align:center; color:#999;">Aún no tienes pedidos</p>` : pedidosCliente.map(p => `
+                <div style="padding:15px; border-bottom:1px solid #f0e6d2; display:flex; justify-content:space-between; align-items:center;">
+                    <div><strong>#${p.id}</strong> <span style="font-size:0.8rem; color:#888;">· ${p.estatus}</span></div>
+                    <strong style="color:var(--nb-wine);">${money.format(p.total)}</strong>
                 </div>
-                <div style="text-align:center; margin-top:15px;">
-                    <button onclick="window.location.hash='#/mis-pedidos'" style="
-                        padding:10px 25px; background:none; color:var(--nb-wine);
-                        border:2px solid var(--nb-wine); border-radius:20px; cursor:pointer;
-                        font-weight:bold; font-size:0.9rem;"
-                        onmouseover="this.style.background='var(--nb-wine)'; this.style.color='white'"
-                        onmouseout="this.style.background='none'; this.style.color='var(--nb-wine)'">
-                        Ver todos los pedidos
-                    </button>
-                </div>`}
+            `).join('')}
         </div>`;
     }
-    // ── Render principal ──────────────────────────────────────────
+
     function render() {
-        if (isStaff) {
-            // ===== Layout con Sidebar (admin/empleado) =====
-            app.innerHTML = `
-            <div style="display:flex; min-height:100vh; width:100vw; background:var(--nb-cream);">
-                ${Sidebar('', 0)}
-                <main style="flex:1; padding:2rem; overflow-y:auto; max-width:950px; margin:0 auto;">
-                    ${renderProfileCard()}
-                    ${isAdmin    ? renderAdminPanel()    : ''}
-                    ${isEmpleado ? renderEmpleadoStats() : ''}
-                </main>
-            </div>
+        app.innerHTML = `
             <style>
-                @keyframes profileSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-                @media (max-width: 700px) {
-                    .profile-main-card { flex-direction: column !important; align-items: center !important; }
-                    .profile-main-card > div:first-child {
-                        border-right: none !important; border-bottom: 2px solid #f0e6d2;
-                        padding-right: 0 !important; padding-bottom: 25px; min-width: auto !important;
-                    }
+                @media (max-width: 768px) {
+                    .profile-main-card { flex-direction: column !important; align-items: center !important; padding: 20px !important; }
+                    .profile-main-card > div:first-child { border-right: none !important; border-bottom: 2px solid #f0e6d2; padding-right: 0 !important; padding-bottom: 20px; margin-bottom: 20px; width: 100%; }
+                    .mobile-stack { grid-template-columns: 1fr !important; }
+                    .mobile-actions { flex-direction: column; }
+                    .account-buttons-container { flex-direction: column-reverse; gap: 10px !important; }
                 }
-            </style>`;
-        } else {
-            // ===== Layout con Navbar (cliente) =====
-            app.innerHTML = `
+            </style>
             <div style="width:100%; min-height:100vh; display:flex; flex-direction:column; background:var(--nb-cream);">
                 <div id="nav-wrapper">${Navbar()}</div>
                 <main style="flex:1; width:100%; max-width:950px; margin:0 auto; padding:2rem 20px 50px 20px;">
                     ${renderProfileCard()}
-                    ${renderClienteSections(pedidosCliente)}
-                    <button onclick="window._profileLogout()" style="
-                        width:100%; padding:14px; background:none; color:#c62828;
-                        border:2px solid #c62828; border-radius:14px; cursor:pointer;
-                        font-weight:800; font-size:1rem; text-transform:uppercase;
-                        letter-spacing:1px; transition:all 0.2s;
-                        display:flex; align-items:center; justify-content:center; gap:10px;
-                    " onmouseover="this.style.background='#c62828'; this.style.color='white'"
-                    onmouseout="this.style.background='none'; this.style.color='#c62828'">
-                        <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
-                    </button>
+                    
+                    ${isAdmin    ? renderAdminPanel()    : ''}
+                    ${isEmpleado ? renderEmpleadoStats() : ''}
+                    ${!isStaff   ? renderClienteSections(pedidosCliente) : ''}
+                    
+                    <div class="account-buttons-container" style="display: flex; gap: 20px; margin-top: 30px; flex-wrap: wrap;">
+                        <button onclick="window._profileShowDeleteConfirm()" style="
+                            flex: 1; min-width: 160px; padding: 14px; background: none; 
+                            color: #c62828; border: 2px solid #c62828; border-radius: 14px; 
+                            cursor: pointer; font-weight: 800; text-transform: uppercase;
+                            transition: background 0.2s, color 0.2s;
+                        " onmouseover="this.style.background='#c62828'; this.style.color='white'" onmouseout="this.style.background='none'; this.style.color='#c62828'">
+                            <i class="fas fa-user-slash"></i> Eliminar Cuenta
+                        </button>
+                        
+                        <button onclick="window._profileLogout()" style="
+                            flex: 1; min-width: 160px; padding: 14px; background: #c62828; 
+                            color: white; border: 2px solid #c62828; border-radius: 14px; 
+                            cursor: pointer; font-weight: 800; text-transform: uppercase;
+                            transition: opacity 0.2s;
+                        " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                            <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                        </button>
+                    </div>
                 </main>
             </div>
-            <style>
-                @keyframes profileSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-                @media (max-width: 700px) {
-                    .profile-main-card { flex-direction: column !important; align-items: center !important; }
-                    .profile-main-card > div:first-child {
-                        border-right: none !important; border-bottom: 2px solid #f0e6d2;
-                        padding-right: 0 !important; padding-bottom: 25px; min-width: auto !important;
-                    }
-                }
-            </style>`;
-        }
+        `;
     }
 
-    // ── Handlers globales ─────────────────────────────────────────
     window._profileEditing = false;
-
     window._profileStartEdit = () => { window._profileEditing = true;  render(); };
     window._profileCancelEdit = () => { window._profileEditing = false; render(); };
 
     window._profileSaveEdit = async () => {
-        const nombre   = document.getElementById('edit-nombre')?.value?.trim();
+        const nombre = document.getElementById('edit-nombre')?.value?.trim();
         const telefono = document.getElementById('edit-telefono')?.value?.trim();
-        if (!nombre) { window._nbShowToast?.('El nombre no puede estar vacío', 'error'); return; }
         try {
-            await request(`perfil/${user.id}`, 'PATCH', {
-                nombre_usuario: nombre,
-                telefono: telefono || null
-            });
-            const updatedUser = { ...user, nombre_usuario: nombre, telefono: telefono || null };
-            state.setUser(updatedUser, state.token);
-            user.nombre_usuario = nombre;
-            user.telefono = telefono || null;
+            await request(`perfil/${user.id}`, 'PATCH', { nombre_usuario: nombre, telefono: telefono || null });
+            state.user.nombre_usuario = nombre;
+            state.user.telefono = telefono || null;
             window._profileEditing = false;
             render();
-            window._nbShowToast?.('Perfil actualizado', 'success');
+            alert('Perfil actualizado');
         } catch (e) {
-            window._nbShowToast?.('Error al actualizar perfil', 'error');
+            alert('Error al actualizar perfil');
         }
     };
 
@@ -492,6 +235,146 @@ export async function renderProfile() {
         if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
             state.logout();
             window.location.hash = '#/login';
+        }
+    };
+
+    // --- NUEVA LÓGICA DE ELIMINACIÓN EN DOS PASOS ---
+
+    window._profileCloseDeleteModal = () => {
+        const modal = document.getElementById('delete-modal-overlay');
+        if (modal) modal.remove();
+    };
+
+    // Paso 1: Mostrar la advertencia original
+    window._profileShowDeleteConfirm = () => {
+        const modal = document.createElement('div');
+        modal.id = 'delete-modal-overlay';
+        modal.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.7); z-index: 20000;
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(5px); padding: 15px; box-sizing: border-box;
+        `;
+
+        modal.innerHTML = `
+            <div id="delete-modal-content" style="background-color: #2a0a0c; padding: 40px; border-radius: 25px; max-width: 450px; width: 100%; color: white; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.5); border: 2px solid #f3dfb0;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 3.5rem; color: #ff6b6b; margin-bottom: 20px; display: block;"></i>
+                
+                <h2 style="margin: 0 0 15px 0; color: #f3dfb0; font-size: 1.8rem; text-transform: uppercase; letter-spacing: 1px;">¿Eliminar Cuenta?</h2>
+                
+                <p style="margin: 0 0 30px 0; color: white; font-size: 1.1rem; line-height: 1.5; opacity: 0.9;">
+                    Esta acción es irreversible. Se borrarán todos tus datos, historial de pedidos y carrito. <br><strong>¿Estás completamente seguro de continuar?</strong>
+                </p>
+                
+                <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                    <button onclick="window._profileCloseDeleteModal()" style="
+                        flex: 1; min-width: 140px; padding: 12px; background: #f3dfb0; 
+                        color: #2a0a0c; border: none; border-radius: 10px; font-weight: bold; 
+                        cursor: pointer; text-transform: uppercase; font-size: 0.9rem;
+                    ">
+                        <i class="fas fa-arrow-left"></i> Regresar
+                    </button>
+                    
+                    <button onclick="window._profileStepTwoDelete()" style="
+                        flex: 1; min-width: 140px; padding: 12px; background: #c62828; 
+                        color: white; border: none; border-radius: 10px; font-weight: bold; 
+                        cursor: pointer; text-transform: uppercase; font-size: 0.9rem;
+                    ">
+                        <i class="fas fa-trash-alt"></i> Sí, Eliminar
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+    };
+
+    // Paso 2: Cambiar la ventana para pedir la contraseña
+    window._profileStepTwoDelete = () => {
+        const content = document.getElementById('delete-modal-content');
+        if (!content) return;
+        
+        content.innerHTML = `
+            <i class="fas fa-lock" style="font-size: 3.5rem; color: #f3dfb0; margin-bottom: 20px; display: block;"></i>
+            
+            <h2 style="margin: 0 0 15px 0; color: #f3dfb0; font-size: 1.5rem; text-transform: uppercase; letter-spacing: 1px;">Confirmar Identidad</h2>
+            
+            <p style="margin: 0 0 20px 0; color: white; font-size: 1rem; opacity: 0.9;">
+                Por seguridad, ingresa tu contraseña para confirmar la eliminación de la cuenta.
+            </p>
+            
+            <input type="password" id="delete-confirm-password" placeholder="Tu contraseña" style="
+                width: 100%; padding: 12px 15px; border-radius: 10px; border: none; outline: none; 
+                background: #f3dfb0; color: #333; box-sizing: border-box; font-size: 1rem; 
+                margin-bottom: 10px; text-align: center; font-family: sans-serif;
+            ">
+            
+            <p id="delete-error-msg" style="display:none; color: #ff6b6b; margin: 0 0 15px 0; font-size: 0.9rem;"></p>
+            
+            <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                <button onclick="window._profileCloseDeleteModal()" style="
+                    flex: 1; min-width: 140px; padding: 12px; background: #f3dfb0; 
+                    color: #2a0a0c; border: none; border-radius: 10px; font-weight: bold; 
+                    cursor: pointer; text-transform: uppercase; font-size: 0.9rem;
+                ">
+                    Cancelar
+                </button>
+                
+                <button id="btn-final-delete" onclick="window._profileExecuteDelete()" style="
+                    flex: 1; min-width: 140px; padding: 12px; background: #c62828; 
+                    color: white; border: none; border-radius: 10px; font-weight: bold; 
+                    cursor: pointer; text-transform: uppercase; font-size: 0.9rem;
+                ">
+                    Eliminar Definitivamente
+                </button>
+            </div>
+        `;
+    };
+
+    // Paso 3: Validar contraseña y ejecutar la eliminación
+    window._profileExecuteDelete = async () => {
+        const passInput = document.getElementById('delete-confirm-password').value;
+        const errorMsg = document.getElementById('delete-error-msg');
+        const btn = document.getElementById('btn-final-delete');
+
+        if (!passInput) {
+            errorMsg.innerText = "Por favor, ingresa tu contraseña.";
+            errorMsg.style.display = "block";
+            return;
+        }
+
+        btn.innerText = "Verificando...";
+        btn.disabled = true;
+        errorMsg.style.display = "none";
+
+        try {
+            // Validamos que la contraseña sea correcta usando el servicio de Login
+            const usernameToVerify = state.user.nombre_usuario || state.user.username;
+            const verification = await AuthService.login(usernameToVerify, passInput);
+
+            if (!verification.success) {
+                errorMsg.innerText = "Contraseña incorrecta. Inténtalo de nuevo.";
+                errorMsg.style.display = "block";
+                btn.innerText = "Eliminar Definitivamente";
+                btn.disabled = false;
+                return;
+            }
+
+            // Si la contraseña es correcta, llamamos al backend para borrar la cuenta
+            btn.innerText = 'Eliminando...';
+            await request(`perfil/${user.id}`, 'DELETE');
+            
+            window._profileCloseDeleteModal();
+            state.logout();
+            alert('Tu cuenta ha sido eliminada exitosamente. Lamentamos verte partir.');
+            window.location.hash = '#/register'; 
+
+        } catch (e) {
+            console.error('Error eliminando cuenta:', e);
+            errorMsg.innerText = "Hubo un error al intentar eliminar la cuenta.";
+            errorMsg.style.display = "block";
+            btn.innerText = 'Eliminar Definitivamente';
+            btn.disabled = false;
         }
     };
 
