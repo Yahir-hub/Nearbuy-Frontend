@@ -4,7 +4,7 @@ import { Loader } from '../components/Loader.js';
 import { Modal } from '../components/Modal.js';
 import { Sidebar } from '../components/Sidebar.js';
 
-// Variables de módulo para el estado local de la vista
+// Variables de módulo para el estado local de la vista 
 let allProducts = [];
 let allCategories = [];
 let filteredProducts = [];

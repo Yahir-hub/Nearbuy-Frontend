@@ -20,7 +20,7 @@ import { renderReportes } from './views/reportesview.js';
 import { renderInventario } from './views/inventarioview.js';
 import { renderMisPedidos } from './views/mispedidosview.js';
 import { renderQRVerify } from './views/qrverifyview.js';
-import './components/authmodal.js'; // El modal flotante
+import './components/authmodal.js';
 
 export const Router = {
     init() {

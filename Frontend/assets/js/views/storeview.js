@@ -99,7 +99,7 @@ export async function renderStore() {
     
     state.categories = categories;
 
-    // --- MODIFICACIÓN: Agregar la categoría "TODOS" al principio de la lista ---
+    // --- MODIFICACIÓN: Agregar la categoría "TODOS" al principio de la lista --
     const allCategory = { id: 'all', nombre: 'TODOS', color: '#f5f5f5', icon: 'fa-list' }; // Usando icono genérico de lista de FontAwesome
     const displayCategories = [allCategory, ...categories];
 

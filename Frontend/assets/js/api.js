@@ -1,6 +1,6 @@
 /**
  * api.js
- * Wrapper para fetch que maneja errores y mocks.
+ * Wrapper para fetch que maneja errores y mocks. 
  */
 import { Modal } from './components/Modal.js';
 import { state } from './state.js'; // IMPORTAMOS EL COMPONENTE MODAL

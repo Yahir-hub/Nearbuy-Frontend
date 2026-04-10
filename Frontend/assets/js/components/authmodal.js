@@ -1,4 +1,4 @@
-import { AuthService } from '../auth.js';
+import { AuthService } from '../auth.js'; 
 
 window.closeAuthModal = () => {
     const modal = document.getElementById('auth-modal-overlay');

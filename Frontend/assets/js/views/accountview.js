@@ -2,7 +2,7 @@ import { Navbar } from '../components/Navbar.js';
 import { state } from '../state.js';
 import { request } from '../api.js';
 import { Sidebar } from '../components/Sidebar.js';
-import { AuthService } from '../auth.js'; // Añadido para validar la contraseña
+import { AuthService } from '../auth.js'; // Añadido para validar la contraseña 
 
 export async function renderProfile() {
     const app = document.getElementById('app');

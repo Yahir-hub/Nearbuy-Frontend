@@ -1,7 +1,7 @@
 import { Navbar } from '../components/Navbar.js';
 import { ProductCard } from '../components/productCard.js';
 import { request, getProductosPorCategoria, getProductos } from '../api.js';
-import { state } from '../state.js';
+import { state } from '../state.js'; 
 
 let _currentRenderId = 0;
 
