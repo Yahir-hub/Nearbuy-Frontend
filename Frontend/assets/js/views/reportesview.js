@@ -1,5 +1,5 @@
 /**
- * [NUEVO] reportesview.js
+ * [MODIFICADO] reportesview.js
  * Vista de reportes para admin/empleado.
  * 
  * Secciones:
@@ -7,10 +7,11 @@
  * - Ventas semanales (tabla con totales por día)
  * - Ventas mensuales (resumen)
  * - Productos más vendidos (top 10)
+ * - NUEVO: IA — Tendencias y Baja Rotación
  */
 
 import { state } from '../state.js';
-import { request } from '../api.js';
+import { request, getTendencias, getBajaRotacion } from '../api.js';
 import { Loader } from '../components/Loader.js';
 import { Modal } from '../components/Modal.js';
 import { Sidebar } from '../components/Sidebar.js';
@@ -23,18 +24,22 @@ let ventasMensuales = null;
 let topProductos = [];
 let allProducts = [];
 let cajaDiaria = 0;
+let iaTendencias = [];      // NUEVO
+let iaBajaRotacion = [];     // NUEVO
 
 export async function renderReportes() {
     const app = document.getElementById('app');
 
     Loader.show();
     try {
-        const [diaRes, semRes, mesRes, topRes, prodRes] = await Promise.all([
+        const [diaRes, semRes, mesRes, topRes, prodRes, tendRes, bajaRes] = await Promise.all([
             request('reportes/ventas-diarias'),
             request('reportes/ventas-semanales'),
             request('reportes/ventas-mensuales'),
             request('reportes/productos-mas-vendidos?limit=10'),
-            request('productos?limit=500')
+            request('productos?limit=500'),
+            getTendencias(10),          // NUEVO
+            getBajaRotacion(10),        // NUEVO
         ]);
         ventasDiarias = diaRes || {};
         ventasSemanales = semRes || {};
@@ -42,6 +47,8 @@ export async function renderReportes() {
         topProductos = topRes?.productos || [];
         allProducts = prodRes?.items || [];
         cajaDiaria = diaRes?.total || 0;
+        iaTendencias = tendRes?.productos || [];      // NUEVO
+        iaBajaRotacion = bajaRes?.productos || [];     // NUEVO
     } catch (e) {
         console.error('Error cargando reportes:', e);
     }
@@ -189,43 +196,100 @@ function renderView() {
                             </table>
                         `}
                     </div>
+                </div>
 
-                    <!-- TOP PRODUCTOS MÁS VENDIDOS -->
-                    <div style="background: white; border-radius: 12px; padding: 1.5rem; border: 1px solid #f0e6d2;">
-                        <h3 style="color: var(--nb-wine); margin: 0 0 1rem 0; font-size: 1rem;">
-                            <i class="fas fa-trophy"></i> Top 10 Productos Más Vendidos
-                        </h3>
-                        ${topProductos.length === 0 ? `
-                            <p style="color: #ccc; text-align: center; padding: 20px;">Sin datos de ventas</p>
-                        ` : `
-                            <div style="display: flex; flex-direction: column; gap: 8px;">
-                                ${topProductos.map((item, i) => {
-                                    const prod = allProducts.find(p => p.id === item.id_producto);
-                                    const nombre = prod?.descripcion || prod?.nombre || `Producto #${item.id_producto}`;
-                                    const maxQty = topProductos[0]?.cantidad_vendida || 1;
-                                    const barWidth = Math.max((item.cantidad_vendida / maxQty) * 100, 8);
-                                    const medals = ['🥇', '🥈', '🥉'];
-                                    const medal = i < 3 ? medals[i] : `<span style="color: #999; font-size: 0.8rem; font-weight: bold;">${i + 1}</span>`;
-                                    return `
-                                        <div style="display: flex; align-items: center; gap: 10px;">
-                                            <div style="width: 28px; text-align: center; font-size: 1.1rem; flex-shrink: 0;">${medal}</div>
-                                            <div style="flex: 1; min-width: 0;">
-                                                <div style="font-size: 0.8rem; font-weight: 600; color: var(--nb-text); margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                                    ${nombre}
-                                                </div>
-                                                <div style="height: 8px; background: #f5f0e8; border-radius: 4px; overflow: hidden;">
-                                                    <div style="height: 100%; width: ${barWidth}%; background: var(--nb-wine); border-radius: 4px; transition: width 0.5s;"></div>
-                                                </div>
-                                            </div>
-                                            <div style="font-weight: bold; color: var(--nb-wine); font-size: 0.85rem; flex-shrink: 0; min-width: 50px; text-align: right;">
-                                                ${item.cantidad_vendida} uds
-                                            </div>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
-                        `}
+                <!-- ============================================================ -->
+                <!-- NUEVO: SECCIÓN DE INTELIGENCIA ARTIFICIAL                    -->
+                <!-- ============================================================ -->
+                <div style="margin-top: 2rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #4a1d1f, #6d2c30); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-brain" style="color: white; font-size: 1.1rem;"></i>
                     </div>
+                    <h2 style="color: var(--nb-wine); font-size: 1.4rem; margin: 0;">Análisis con Inteligencia Artificial</h2>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+
+                        <!-- IA: TENDENCIAS (Predicción de demanda) -->
+                        <div style="background: white; border-radius: 12px; padding: 1.5rem; border: 1px solid #f0e6d2;">
+                            <h3 style="color: var(--nb-wine); margin: 0 0 0.5rem 0; font-size: 1rem;">
+                                <i class="fas fa-fire"></i> Tendencias IA
+                            </h3>
+                            <p style="font-size: 0.75rem; color: #999; margin: 0 0 1rem 0;">Productos con mayor demanda según análisis de co-compra</p>
+                            ${iaTendencias.length === 0 ? `
+                                <p style="color: #ccc; text-align: center; padding: 20px;">Sin datos suficientes para analizar</p>
+                            ` : `
+                                <div style="display: flex; flex-direction: column; gap: 8px;">
+                                    ${iaTendencias.map((item, i) => {
+                                        const maxQty = iaTendencias[0]?.cantidad_vendida || 1;
+                                        const barWidth = Math.max((item.cantidad_vendida / maxQty) * 100, 8);
+                                        return `
+                                            <div style="display: flex; align-items: center; gap: 10px;">
+                                                <div style="width: 28px; text-align: center; font-size: 0.85rem; font-weight: bold; color: ${i < 3 ? '#e65100' : '#999'}; flex-shrink: 0;">
+                                                    ${i + 1}
+                                                </div>
+                                                <div style="flex: 1; min-width: 0;">
+                                                    <div style="font-size: 0.8rem; font-weight: 600; color: var(--nb-text); margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                                        ${item.descripcion || item.nombre || 'Producto'}
+                                                    </div>
+                                                    <div style="height: 8px; background: #fff3e0; border-radius: 4px; overflow: hidden;">
+                                                        <div style="height: 100%; width: ${barWidth}%; background: linear-gradient(90deg, #e65100, #ff9800); border-radius: 4px; transition: width 0.5s;"></div>
+                                                    </div>
+                                                </div>
+                                                <div style="font-weight: bold; color: #e65100; font-size: 0.85rem; flex-shrink: 0; min-width: 50px; text-align: right;">
+                                                    ${item.cantidad_vendida} uds
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            `}
+                        </div>
+
+                        <!-- IA: BAJA ROTACIÓN (Decisiones de inventario) -->
+                        <div style="background: white; border-radius: 12px; padding: 1.5rem; border: 1px solid #f0e6d2;">
+                            <h3 style="color: var(--nb-wine); margin: 0 0 0.5rem 0; font-size: 1rem;">
+                                <i class="fas fa-exclamation-triangle"></i> Baja Rotación IA
+                            </h3>
+                            <p style="font-size: 0.75rem; color: #999; margin: 0 0 1rem 0;">Productos con menor demanda — considerar promoción o descontinuar</p>
+                            ${iaBajaRotacion.length === 0 ? `
+                                <p style="color: #ccc; text-align: center; padding: 20px;">Sin datos suficientes para analizar</p>
+                            ` : `
+                                <div style="display: flex; flex-direction: column; gap: 6px;">
+                                    ${iaBajaRotacion.map(item => {
+                                        const vendido = item.veces_vendido || 0;
+                                        const stockInfo = item.stock !== null && item.stock !== undefined ? `Stock: ${item.stock}` : '';
+                                        const precioInfo = item.precio ? money.format(item.precio) : '';
+                                        return `
+                                            <div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: ${vendido === 0 ? '#ffebee' : '#fff8e1'}; border-radius: 8px;">
+                                                <div style="
+                                                    width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+                                                    background: ${vendido === 0 ? '#c62828' : '#f57f17'};
+                                                    color: white; display: flex; align-items: center; justify-content: center;
+                                                    font-size: 0.7rem; font-weight: bold;
+                                                ">${vendido}</div>
+                                                <div style="flex: 1; min-width: 0;">
+                                                    <div style="font-size: 0.8rem; font-weight: 600; color: var(--nb-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                                        ${item.descripcion || item.nombre || 'Producto'}
+                                                    </div>
+                                                    <div style="font-size: 0.7rem; color: #999;">
+                                                        ${[precioInfo, stockInfo].filter(Boolean).join(' · ')}
+                                                    </div>
+                                                </div>
+                                                <div style="font-size: 0.7rem; color: ${vendido === 0 ? '#c62828' : '#f57f17'}; font-weight: bold; flex-shrink: 0;">
+                                                    ${vendido === 0 ? 'Sin ventas' : vendido + ' venta' + (vendido !== 1 ? 's' : '')}
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            `}
+                        </div>
+
+                    </div>
+                    <!-- FIN SECCIÓN IA -->
                 </div>
 
                 <!-- BARRA VISUAL DE VENTAS DE LA SEMANA -->
@@ -262,5 +326,3 @@ function renderView() {
         </div>
     `;
 }
-
-

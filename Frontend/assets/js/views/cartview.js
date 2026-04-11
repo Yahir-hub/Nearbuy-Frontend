@@ -1,26 +1,221 @@
 import { Navbar } from '../components/Navbar.js';
 import { state } from '../state.js';
+import { getRecomendacion } from '../api.js';
 
 // Set de IDs seleccionados (por defecto todos marcados)
 let selectedIds = new Set();
 let initialized = false;
 
-export function renderCart() {
+// Cache de recomendaciones para no repetir llamadas
+let _iaRecomendaciones = [];
+let _iaLastCartIds = '';
+let _iaCartActive = false;
 
-    // Inicializar selección: marcar todos al entrar
+async function cargarRecomendaciones() {
+    if (!_iaCartActive) return;
+    if (!state.isAuthenticated || !state.user?.id || state.cart.length === 0) {
+        _iaRecomendaciones = [];
+        renderBarraIA();
+        return;
+    }
+
+    const cartIds = state.cart.map(i => i.id).sort().join(',');
+    if (cartIds === _iaLastCartIds && _iaRecomendaciones.length > 0) return;
+    _iaLastCartIds = cartIds;
+
+    const recomendaciones = [];
+    const idsEnCarrito = new Set(state.cart.map(i => i.id));
+    const idsYaRecomendados = new Set();
+
+    for (const item of state.cart) {
+        if (recomendaciones.length >= 4) break;
+        try {
+            const res = await getRecomendacion(state.user.id, String(item.id));
+            if (res && res.recomendacion && res.metodo !== 'ninguno') {
+                const recId = res.recomendacion.id;
+                if (!idsEnCarrito.has(recId) && !idsYaRecomendados.has(recId)) {
+                    recomendaciones.push(res.recomendacion);
+                    idsYaRecomendados.add(recId);
+                }
+            }
+        } catch (e) {
+            console.error('[IA Cart] Error:', e);
+        }
+    }
+
+    _iaRecomendaciones = recomendaciones;
+    if (_iaCartActive) renderBarraIA();
+}
+
+function renderBarraIA() {
+    const existing = document.getElementById('nb-ia-cart-bar');
+    if (existing) existing.remove();
+
+    if (!_iaCartActive || _iaRecomendaciones.length === 0) return;
+
+    const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+
+    const barra = document.createElement('div');
+    barra.id = 'nb-ia-cart-bar';
+    barra.style.cssText = `
+        position: fixed;
+        bottom: 0;
+        left: 4%;
+        right: 38%;
+        background: white;
+        z-index: 9997;
+        box-shadow: 0 -2px 15px rgba(0,0,0,0.08);
+        border-top: 2px solid #f0e6d2;
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    `;
+
+    barra.innerHTML = `
+        <div style="
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-right: 12px;
+            border-right: 1px solid #f0e6d2;
+        ">
+            <div style="
+                width: 32px; height: 32px;
+                background: linear-gradient(135deg, #4a1d1f, #6d2c30);
+                border-radius: 8px;
+                display: flex; align-items: center; justify-content: center;
+            ">
+                <i class="fas fa-brain" style="font-size: 0.8rem; color: white;"></i>
+            </div>
+            <span style="font-size: 0.7rem; color: var(--nb-wine); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">IA</span>
+        </div>
+
+        ${_iaRecomendaciones.map(rec => `
+            <div style="
+                flex-shrink: 0;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                background: #fdf8f0;
+                border: 1px solid #f0e6d2;
+                border-radius: 10px;
+                padding: 8px 12px;
+                min-width: 200px;
+                max-width: 240px;
+                transition: background 0.2s;
+            " onmouseover="this.style.background='#f5efe3'"
+               onmouseout="this.style.background='#fdf8f0'">
+                
+                <div style="
+                    width: 38px; height: 38px;
+                    border-radius: 8px;
+                    background: ${rec.imagen_url ? `url('${rec.imagen_url}') center/cover` : '#f0e6d2'};
+                    flex-shrink: 0;
+                    display: flex; align-items: center; justify-content: center;
+                ">
+                    ${rec.imagen_url ? '' : '<i class="fas fa-box-open" style="color: #ccc; font-size: 0.85rem;"></i>'}
+                </div>
+
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-size: 0.6rem; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ${rec.razon}
+                    </div>
+                    <div style="font-weight: 700; font-size: 0.8rem; color: var(--nb-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ${rec.nombre || rec.descripcion || 'Producto'}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--nb-wine); font-weight: 600;">
+                        ${rec.precio ? money.format(rec.precio) : ''}
+                    </div>
+                </div>
+
+                <button onclick="event.stopPropagation(); window._iaAgregarDesdeCarrito(${rec.id}, '${(rec.nombre || rec.descripcion || 'Producto').replace(/'/g, "\\'")}')" style="
+                    background: var(--nb-wine);
+                    color: white;
+                    border: none;
+                    width: 28px; height: 28px;
+                    border-radius: 50%;
+                    display: flex; align-items: center; justify-content: center;
+                    cursor: pointer;
+                    flex-shrink: 0;
+                    font-size: 0.75rem;
+                    transition: transform 0.2s;
+                " onmouseover="this.style.transform='scale(1.15)'"
+                   onmouseout="this.style.transform='scale(1)'">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        `).join('')}
+
+        <button onclick="document.getElementById('nb-ia-cart-bar').remove()" style="
+            background: none;
+            border: none;
+            color: #ccc;
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 6px;
+            flex-shrink: 0;
+            margin-left: auto;
+            transition: color 0.2s;
+        " onmouseover="this.style.color='var(--nb-wine)'"
+           onmouseout="this.style.color='#ccc'">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+
+    document.body.appendChild(barra);
+}
+
+// Limpiar barra al cambiar de ruta
+window.addEventListener('hashchange', () => {
+    if (!window.location.hash.includes('/cart')) {
+        _iaCartActive = false;
+        const bar = document.getElementById('nb-ia-cart-bar');
+        if (bar) bar.remove();
+    }
+});
+
+window._iaAgregarDesdeCarrito = async function(productoId, nombre) {
+    try {
+        const { request } = await import('../api.js');
+        const res = await request(`productos/${productoId}`);
+        if (res && res.id) {
+            const producto = {
+                id: res.id,
+                name: res.descripcion || res.nombre || nombre,
+                price: res.precio,
+                stock: res.stock,
+                image: res.imagen_url || null
+            };
+            state.addToCart(producto);
+            if (window._nbShowToast) {
+                window._nbShowToast(`${producto.name} agregado al carrito`, 'success');
+            }
+            _iaLastCartIds = '';
+            cargarRecomendaciones();
+        }
+    } catch (e) {
+        console.error('[IA Cart] Error al agregar:', e);
+    }
+};
+
+export function renderCart() {
+    _iaCartActive = true;
+
     if (!initialized || selectedIds.size === 0) {
         selectedIds = new Set(state.cart.map(item => item.id));
         initialized = true;
     }
 
-    // Limpiar IDs que ya no están en el carrito
     selectedIds.forEach(id => {
         if (!state.cart.find(item => item.id === id)) {
             selectedIds.delete(id);
         }
     });
 
-    // Handlers globales
     window._cartToggleItem = function(id) {
         if (selectedIds.has(id)) {
             selectedIds.delete(id);
@@ -41,8 +236,10 @@ export function renderCart() {
     };
 
     window._cartCheckout = function() {
-        // Guardar los IDs seleccionados para que checkout los use
         window._nbSelectedCartIds = Array.from(selectedIds);
+        _iaCartActive = false;
+        const bar = document.getElementById('nb-ia-cart-bar');
+        if (bar) bar.remove();
         window.location.hash = '#/checkout';
     };
 
@@ -51,7 +248,6 @@ export function renderCart() {
         const cartItems = state.cart;
         const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
-        // Calcular totales solo de items seleccionados
         const selectedItems = cartItems.filter(item => selectedIds.has(item.id));
         const selectedTotal = selectedItems.reduce((t, i) => t + (i.price * i.quantity), 0);
         const selectedCount = selectedItems.reduce((c, i) => c + i.quantity, 0);
@@ -65,6 +261,7 @@ export function renderCart() {
             <main style="
                 flex: 1; width: 100%; max-width: 1000px; 
                 margin: 0 auto; padding: 2rem 20px;
+                padding-bottom: 80px;
                 display: flex; flex-direction: column;
             ">
                 
@@ -278,20 +475,21 @@ export function renderCart() {
     };
 
     updateHTML();
+    cargarRecomendaciones();
 
     state.subscribe(() => {
-        // Agregar nuevos items al set de seleccionados automáticamente
+        if (!_iaCartActive) return;
         state.cart.forEach(item => {
             if (!selectedIds.has(item.id)) {
                 selectedIds.add(item.id);
             }
         });
-        // Limpiar IDs que ya no están
         selectedIds.forEach(id => {
             if (!state.cart.find(item => item.id === id)) {
                 selectedIds.delete(id);
             }
         });
         updateHTML();
+        cargarRecomendaciones();
     });
 }

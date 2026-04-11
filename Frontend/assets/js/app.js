@@ -1,5 +1,6 @@
 import { Router } from './router.js';
 import { state } from './state.js';
+import { mostrarRecomendacion } from './components/RecomendacionIA.js'; // NUEVO: IA
 
 // Inicializar la aplicación
 document.addEventListener('DOMContentLoaded', () => {
@@ -90,6 +91,9 @@ window.addToCartHandler = (id) => {
 
             state.addToCart(product);
             showToast(`${product.name} agregado al carrito`, 'success');
+
+            // NUEVO: Disparar recomendación de IA (async, no bloquea)
+            mostrarRecomendacion(product);
         }
     } else {
         console.error("No se encuentran los productos cargados en memoria.");
@@ -111,3 +115,32 @@ window.updateQty = (id, delta) => {
 window.removeItem = (id) => {
     state.removeFromCart(id);
 };
+
+// =========================================================
+// MÓDULO IA — Funciones de Inteligencia Artificial
+// =========================================================
+ 
+/**
+ * Obtener recomendación de producto basada en búsqueda + historial del usuario.
+ * @param {string} userId - UUID del usuario
+ * @param {string} busqueda - Texto de búsqueda o ID del producto
+ */
+export async function getRecomendacion(userId, busqueda) {
+    return await request(`ia/recomendacion?user_id=${encodeURIComponent(userId)}&busqueda=${encodeURIComponent(busqueda)}`);
+}
+ 
+/**
+ * Obtener productos tendencia (más vendidos globalmente).
+ * @param {number} limit - Cantidad de productos a obtener
+ */
+export async function getTendencias(limit = 10) {
+    return await request(`ia/tendencias?limit=${limit}`);
+}
+ 
+/**
+ * Obtener productos de baja rotación (menos vendidos).
+ * @param {number} limit - Cantidad de productos a obtener
+ */
+export async function getBajaRotacion(limit = 10) {
+    return await request(`ia/baja-rotacion?limit=${limit}`);
+}

@@ -125,11 +125,26 @@ export async function renderProfile() {
         <div style="background:white; border-radius:16px; padding:1.5rem; border:1px solid #f0e6d2; margin-bottom:25px;">
             <h3 style="color:var(--nb-wine); margin:0 0 1.2rem 0; font-size:1rem; text-transform:uppercase;"><i class="fas fa-users"></i> Gestión de Usuarios</h3>
             <table style="width:100%; border-collapse:collapse; font-size:0.88rem;">
-                <tr style="border-bottom:2px solid var(--nb-wine); color:var(--nb-wine);"><th style="padding:10px; text-align:left;">Usuario</th><th style="padding:10px; text-align:center;">Rol</th></tr>
+                <tr style="border-bottom:2px solid var(--nb-wine); color:var(--nb-wine);">
+                    <th style="padding:10px; text-align:left;">Usuario</th>
+                    <th style="padding:10px; text-align:center;">Rol</th>
+                    <th style="padding:10px; text-align:center;">Acciones</th>
+                </tr>
                 ${usuarios.map(u => `
                 <tr style="border-bottom:1px solid #eee;">
                     <td style="padding:10px;">${u.nombre_usuario}</td>
                     <td style="padding:10px; text-align:center; font-weight:bold; text-transform:uppercase;">${u.rol}</td>
+                    <td style="padding:10px; text-align:center;">
+                        ${u.id !== user.id ? `
+                            <select onchange="window._adminChangeRole('${u.id}', this.value)" style="padding:4px 8px; border-radius:6px; border:1px solid #ddd; margin-right:6px; font-size:0.8rem;">
+                                <option value="">Cambiar rol</option>
+                                <option value="cliente" ${u.rol==='cliente'?'disabled':''}>Cliente</option>
+                                <option value="empleado" ${u.rol==='empleado'?'disabled':''}>Empleado</option>
+                                <option value="admin" ${u.rol==='admin'?'disabled':''}>Admin</option>
+                            </select>
+                            <button onclick="window._adminDeleteUser('${u.id}','${u.nombre_usuario}')" style="background:#c62828; color:white; border:none; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:0.75rem;"><i class="fas fa-trash"></i></button>
+                        ` : '<em style="color:#999; font-size:0.8rem;">Tú</em>'}
+                    </td>
                 </tr>`).join('')}
             </table>
         </div>`;
@@ -167,6 +182,29 @@ export async function renderProfile() {
             `).join('')}
         </div>`;
     }
+
+    window._adminChangeRole = async (userId, newRole) => {
+        if (!newRole) return;
+        if (!confirm(`¿Cambiar rol a ${newRole}?`)) return;
+        try {
+            await request(`perfil/${userId}`, 'PATCH', { rol: newRole });
+            alert('Rol actualizado');
+            await loadExtra();
+        } catch (e) {
+            alert('Error al cambiar rol');
+        }
+    };
+
+    window._adminDeleteUser = async (userId, nombre) => {
+        if (!confirm(`¿Eliminar al usuario "${nombre}" permanentemente?`)) return;
+        try {
+            await request(`auth/usuario/${userId}`, 'DELETE');
+            alert('Usuario eliminado');
+            await loadExtra();
+        } catch (e) {
+            alert('Error al eliminar usuario');
+        }
+    };
 
     function render() {
         app.innerHTML = `
@@ -362,7 +400,7 @@ export async function renderProfile() {
 
             // Si la contraseña es correcta, llamamos al backend para borrar la cuenta
             btn.innerText = 'Eliminando...';
-            await request(`perfil/${user.id}`, 'DELETE');
+            await request(`auth/usuario/${user.id}`, 'DELETE');
             
             window._profileCloseDeleteModal();
             state.logout();

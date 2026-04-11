@@ -1,12 +1,12 @@
 /**
  * api.js
- * Wrapper para fetch que maneja errores y mocks. 
+ * Wrapper para fetch que maneja errores y mocks.
  */
 import { Modal } from './components/Modal.js';
 import { state } from './state.js'; // IMPORTAMOS EL COMPONENTE MODAL
 
 // CONFIGURACIÓN
-const API_BASE_URL = 'http://192.168.100.56:8001'; // Puerto común para Flask/FastAPI/Django
+const API_BASE_URL = 'http://127.0.0.1:8001'; // Puerto común para Flask/FastAPI/Django
 const USE_MOCK = false; // <--- CAMBIA A FALSE CUANDO TENGAS EL BACKEND
 
 // SIMULACIÓN DE DATOS (MOCKS)
@@ -123,4 +123,33 @@ export async function getProductos(limit = 2000, offset = 0) {
  */
 export async function getProductosPorCategoria(categoriaId, limit = 2000, offset = 0) {
     return await request(`productos?categoria_id=${categoriaId}&limit=${limit}&offset=${offset}`);
+}
+
+// =========================================================
+// MÓDULO IA — Funciones de Inteligencia Artificial
+// =========================================================
+
+/**
+ * Obtener recomendación de producto basada en búsqueda + historial del usuario.
+ * @param {string} userId - UUID del usuario
+ * @param {string} busqueda - Texto de búsqueda o ID del producto
+ */
+export async function getRecomendacion(userId, busqueda) {
+    return await request(`ia/recomendacion?user_id=${encodeURIComponent(userId)}&busqueda=${encodeURIComponent(busqueda)}`);
+}
+
+/**
+ * Obtener productos tendencia (más vendidos globalmente).
+ * @param {number} limit - Cantidad de productos a obtener
+ */
+export async function getTendencias(limit = 10) {
+    return await request(`ia/tendencias?limit=${limit}`);
+}
+
+/**
+ * Obtener productos de baja rotación (menos vendidos).
+ * @param {number} limit - Cantidad de productos a obtener
+ */
+export async function getBajaRotacion(limit = 10) {
+    return await request(`ia/baja-rotacion?limit=${limit}`);
 }
