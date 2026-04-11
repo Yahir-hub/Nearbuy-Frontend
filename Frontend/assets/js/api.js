@@ -6,7 +6,7 @@ import { Modal } from './components/Modal.js';
 import { state } from './state.js'; // IMPORTAMOS EL COMPONENTE MODAL
 
 // CONFIGURACIÓN
-const API_BASE_URL = 'http://127.0.0.1:8001'; // Puerto común para Flask/FastAPI/Django
+const API_BASE_URL = 'https://nearbuy-backend-7gzv.onrender.com'; // Puerto común para Flask/FastAPI/Django
 const USE_MOCK = false; // <--- CAMBIA A FALSE CUANDO TENGAS EL BACKEND
 
 // SIMULACIÓN DE DATOS (MOCKS)
