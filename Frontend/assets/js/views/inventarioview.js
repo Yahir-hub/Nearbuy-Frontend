@@ -4,40 +4,38 @@ import { Loader } from '../components/Loader.js';
 import { Modal } from '../components/Modal.js';
 import { Sidebar } from '../components/Sidebar.js';
 
-// Variables de módulo para el estado local de la vista 
 let allProducts = [];
 let allCategories = [];
 let filteredProducts = [];
 let searchQuery = '';
 let filterCategoryId = null;
-let editingProduct = null;     // null = crear nuevo, objeto = editar existente
+let editingProduct = null;
 let showProductModal = false;
 let showCategorySection = false;
 let editingCategory = null;
+let showCategoryModal = false;
 let cajaDiaria = 0;
 
 export async function renderInventario() {
     const app = document.getElementById('app');
 
-    // Resetear estado local
     searchQuery = '';
     filterCategoryId = null;
     editingProduct = null;
     showProductModal = false;
     showCategorySection = false;
     editingCategory = null;
+    showCategoryModal = false;
 
     Loader.show();
     try {
-        // Cargar datos en paralelo
         const [prodRes, catRes, cajaRes] = await Promise.all([
             request('productos?limit=500'),
             request('categorias?limit=100'),
-            request('reportes/ventas-diarias') 
+            request('reportes/ventas-diarias')
         ]);
         allProducts = prodRes?.items || [];
         allCategories = catRes?.items || [];
-        // CORRECCIÓN 1: Iniciar mostrando todos los productos en lugar de un arreglo vacío
         filteredProducts = [...allProducts];
         cajaDiaria = cajaRes?.total || 0;
     } catch (e) {
@@ -47,7 +45,6 @@ export async function renderInventario() {
 
     renderView();
 
-    // Suscripción para re-render en cambios de estado
     state.subscribe(() => {
         const navWrapper = document.getElementById('inv-nav-active');
         if (navWrapper) renderView();
@@ -171,6 +168,7 @@ function renderView() {
         </div>
 
         ${showProductModal ? renderProductModal() : ''}
+        ${showCategoryModal ? renderCategoryModal() : ''}
     `;
 
     bindEvents();
@@ -278,9 +276,39 @@ function renderProductModal() {
     `;
 }
 
+function renderCategoryModal() {
+    const isEdit = editingCategory !== null;
+    const c = editingCategory || {};
+    return `
+        <div id="category-modal-overlay" style="
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); display: flex; align-items: center;
+            justify-content: center; z-index: 10000; backdrop-filter: blur(3px);
+        ">
+            <div style="background: white; padding: 2rem; border-radius: 16px; max-width: 450px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h2 style="color: var(--nb-wine); margin: 0;">${isEdit ? 'Editar' : 'Nueva'} Categoría</h2>
+                    <button id="btn-close-cat-modal" style="background: none; border: none; font-size: 1.5rem; color: #999; cursor: pointer;">&times;</button>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 14px;">
+                    <div>
+                        <label style="font-weight: 600; font-size: 0.85rem; color: var(--nb-text); display: block; margin-bottom: 4px;">Nombre *</label>
+                        <input type="text" id="cm-nombre" value="${c.nombre || ''}" placeholder="Nombre de la categoría" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+                    </div>
+                    <div>
+                        <label style="font-weight: 600; font-size: 0.85rem; color: var(--nb-text); display: block; margin-bottom: 4px;">Descripción</label>
+                        <textarea id="cm-descripcion" placeholder="Descripción opcional" rows="2" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; resize: vertical;">${c.descripcion || ''}</textarea>
+                    </div>
+                    <button id="btn-save-category" style="width: 100%; padding: 12px; background: var(--nb-wine); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; margin-top: 10px; box-shadow: 0 3px 8px rgba(74,29,31,0.3);">
+                        <i class="fas fa-save"></i> ${isEdit ? 'Guardar Cambios' : 'Crear Categoría'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function applyFilters() {
-    // CORRECCIÓN 2: Eliminamos el "if" que vaciaba la lista al estar en "Todas las categorías". 
-    // Ahora simplemente filtra el array original basado en lo que se seleccione.
     filteredProducts = allProducts.filter(p => {
         const matchSearch = !searchQuery || 
             (p.descripcion && p.descripcion.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -296,7 +324,13 @@ function bindEvents() {
         searchInput.addEventListener('input', (e) => {
             searchQuery = e.target.value;
             applyFilters();
+            const cursorPos = e.target.selectionStart;
             renderView();
+            const newInput = document.getElementById('inv-search');
+            if (newInput) {
+                newInput.focus();
+                newInput.setSelectionRange(cursorPos, cursorPos);
+            }
         });
     }
 
@@ -417,40 +451,21 @@ function bindEvents() {
 
     const btnNewCat = document.getElementById('btn-new-category');
     if (btnNewCat) {
-        btnNewCat.onclick = async () => {
-            const nombre = prompt('Nombre de la nueva categoría:');
-            if (!nombre || nombre.trim().length < 3) { Modal.show('Error', 'El nombre debe tener al menos 3 caracteres', 'error'); return; }
-            const desc = prompt('Descripción (opcional):') || null;
-            Loader.show();
-            try {
-                await request('categorias', 'POST', { nombre: nombre.trim(), descripcion: desc });
-                const catRes = await request('categorias?limit=100');
-                allCategories = catRes?.items || [];
-                Modal.show('Éxito', 'Categoría creada', 'success');
-            } catch (e) {
-                Modal.show('Error', 'No se pudo crear la categoría', 'error');
-            }
-            Loader.hide();
+        btnNewCat.onclick = () => {
+            editingCategory = null;
+            showCategoryModal = true;
             renderView();
         };
     }
 
     document.querySelectorAll('.btn-edit-cat').forEach(btn => {
-        btn.onclick = async () => {
-            const id = parseInt(btn.dataset.id);
-            const currentName = btn.dataset.nombre;
-            const nombre = prompt('Nuevo nombre:', currentName);
-            if (!nombre || nombre.trim().length < 3) return;
-            Loader.show();
-            try {
-                await request(`categorias/${id}`, 'PUT', { nombre: nombre.trim() });
-                const catRes = await request('categorias?limit=100');
-                allCategories = catRes?.items || [];
-                Modal.show('Éxito', 'Categoría actualizada', 'success');
-            } catch (e) {
-                Modal.show('Error', 'No se pudo actualizar la categoría', 'error');
-            }
-            Loader.hide();
+        btn.onclick = () => {
+            editingCategory = {
+                id: parseInt(btn.dataset.id),
+                nombre: btn.dataset.nombre,
+                descripcion: btn.dataset.desc
+            };
+            showCategoryModal = true;
             renderView();
         };
     });
@@ -472,4 +487,43 @@ function bindEvents() {
             renderView();
         };
     });
+
+    const btnCloseCat = document.getElementById('btn-close-cat-modal');
+    if (btnCloseCat) {
+        btnCloseCat.onclick = () => { showCategoryModal = false; editingCategory = null; renderView(); };
+    }
+
+    const catOverlay = document.getElementById('category-modal-overlay');
+    if (catOverlay) {
+        catOverlay.onclick = (e) => {
+            if (e.target === catOverlay) { showCategoryModal = false; editingCategory = null; renderView(); }
+        };
+    }
+
+    const btnSaveCat = document.getElementById('btn-save-category');
+    if (btnSaveCat) {
+        btnSaveCat.onclick = async () => {
+            const nombre = document.getElementById('cm-nombre').value.trim();
+            const descripcion = document.getElementById('cm-descripcion').value.trim();
+            if (!nombre || nombre.length < 3) { Modal.show('Error', 'El nombre debe tener al menos 3 caracteres', 'error'); return; }
+            Loader.show();
+            try {
+                if (editingCategory) {
+                    await request(`categorias/${editingCategory.id}`, 'PUT', { nombre, descripcion: descripcion || null });
+                    Modal.show('Éxito', 'Categoría actualizada', 'success');
+                } else {
+                    await request('categorias', 'POST', { nombre, descripcion: descripcion || null });
+                    Modal.show('Éxito', 'Categoría creada', 'success');
+                }
+                const catRes = await request('categorias?limit=100');
+                allCategories = catRes?.items || [];
+                showCategoryModal = false;
+                editingCategory = null;
+            } catch (e) {
+                Modal.show('Error', 'No se pudo guardar la categoría', 'error');
+            }
+            Loader.hide();
+            renderView();
+        };
+    }
 }

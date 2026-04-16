@@ -9,23 +9,23 @@ export function Navbar() {
         const query = input.value.trim();
         if (!query) return;
 
-        const inProductsView = typeof window._nbSearchProducts === 'function' 
-            && window.location.hash.startsWith('#/store/');
+        // Guardamos la búsqueda ANTES de redirigir
+        window._nbPendingSearch = query;
+        sessionStorage.setItem('_nbPendingSearch', query);
 
-        if (inProductsView) {
+        // Si ya estamos en una vista de productos, ejecutamos directamente
+        if (window.location.hash.startsWith('#/store/') && typeof window._nbSearchProducts === 'function') {
             window._nbSearchProducts(query);
             return;
         }
 
-        window._nbPendingSearch = query;
-        const currentHash = window.location.hash;
-        if (currentHash === '#/store/all') {
+        // Si estamos en otra página, redirigimos a todas las categorías
+        if (window.location.hash === '#/store/all') {
             if (typeof window._nbRouterReload === 'function') window._nbRouterReload();
         } else {
             window.location.hash = '#/store/all';
         }
     };
-
     window.handleSearchInput = (e) => {
         if (typeof window._nbSearchProducts === 'function') {
             window._nbSearchProducts(e.target.value);
