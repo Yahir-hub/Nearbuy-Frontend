@@ -6,19 +6,16 @@ export function renderCheckout() {
     const app = document.getElementById('app');
     const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
-    // Validación: carrito vacío → redirigir a tienda
     if (state.cart.length === 0) {
         window.location.hash = '#/store';
         return;
     }
 
-    // Validación: usuario no autenticado → redirigir a login
     if (!state.isAuthenticated || !state.user) {
         window.location.hash = '#/login';
         return;
     }
 
-    // Filtrar solo items seleccionados desde cartview
     const selectedIds = window._nbSelectedCartIds && window._nbSelectedCartIds.length > 0
         ? new Set(window._nbSelectedCartIds)
         : new Set(state.cart.map(item => item.id));
@@ -26,9 +23,6 @@ export function renderCheckout() {
     const cartItems = state.cart.filter(item => selectedIds.has(item.id));
     const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-    // ========================================
-    // PASO 1: Pantalla de confirmación
-    // ========================================
     function renderConfirmation() {
         app.innerHTML = `
         <div style="width: 100%; min-height: 100vh; display: flex; flex-direction: column; background-color: var(--nb-cream);">
@@ -51,7 +45,6 @@ export function renderCheckout() {
                         Revisa tu pedido antes de confirmar. Podrás recogerlo en tienda.
                     </p>
 
-                    <!-- Lista de productos -->
                     <div style="
                         background: #fdf8f0;
                         border-radius: 15px;
@@ -79,7 +72,6 @@ export function renderCheckout() {
                         `).join('')}
                     </div>
 
-                    <!-- Total -->
                     <div style="
                         display: flex;
                         justify-content: space-between;
@@ -96,7 +88,6 @@ export function renderCheckout() {
                         * Precios con IVA incluido &bull; Método: Pago en tienda (Pick-up)
                     </p>
 
-                    <!-- Botones -->
                     <div style="display: flex; gap: 15px;">
                         <button onclick="window.location.hash='#/cart'" style="
                             flex: 1;
@@ -132,9 +123,6 @@ export function renderCheckout() {
         `;
     }
 
-    // ========================================
-    // PASO 2: Loading
-    // ========================================
     function renderLoading() {
         app.innerHTML = `
         <div style="width: 100%; min-height: 100vh; display: flex; flex-direction: column; background-color: var(--nb-cream);">
@@ -163,9 +151,6 @@ export function renderCheckout() {
         `;
     }
 
-    // ========================================
-    // PASO 3: Pantalla de éxito
-    // ========================================
     function renderSuccess(pedidoId, totalPagado) {
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=NearBuy_Pedido_${pedidoId}`;
 
@@ -266,9 +251,6 @@ export function renderCheckout() {
         `;
     }
 
-    // ========================================
-    // PASO 4: Pantalla de error
-    // ========================================
     function renderError(errorMsg) {
         app.innerHTML = `
         <div style="width: 100%; min-height: 100vh; display: flex; flex-direction: column; background-color: var(--nb-cream);">
@@ -332,14 +314,10 @@ export function renderCheckout() {
         `;
     }
 
-    // ========================================
-    // Handler principal: Confirmar pedido
-    // ========================================
     window._nbConfirmarPedido = async function() {
         renderLoading();
 
         try {
-            // FIX: Fecha naive (sin timezone) para evitar error de validación en Pydantic
             const now = new Date();
             const fechaNaive = now.getFullYear() + '-' +
                 String(now.getMonth() + 1).padStart(2, '0') + '-' +
@@ -348,10 +326,6 @@ export function renderCheckout() {
                 String(now.getMinutes()).padStart(2, '0') + ':' +
                 String(now.getSeconds()).padStart(2, '0');
 
-            // PASO 1: Crear el pedido en el backend
-            // FIX: El codigo_qr se deja null en la creación.
-            //       El QR visual en pantalla de éxito usa el ID real.
-            //       No necesitamos actualizar la DB con PUT después.
             const pedidoBody = {
                 id_usuario: state.user.id,
                 total: total,
@@ -367,7 +341,6 @@ export function renderCheckout() {
             const pedidoResponse = await request('pedidos', 'POST', pedidoBody);
             console.log('[Checkout] Respuesta pedido:', pedidoResponse);
 
-            // Verificar que se creó el pedido
             if (!pedidoResponse || pedidoResponse.error || !pedidoResponse.id) {
                 const errMsg = pedidoResponse?.error || 'No se pudo crear el pedido';
                 renderError(errMsg);
@@ -377,63 +350,45 @@ export function renderCheckout() {
             const pedidoId = pedidoResponse.id;
             console.log('[Checkout] Pedido creado con ID:', pedidoId);
 
-            // Guardar código QR con el ID real
-            const qrData = `NearBuy_Pedido_${pedidoId}`;
             await request(`pedidos/${pedidoId}`, 'PUT', { codigo_qr: `NearBuy_Pedido_${pedidoId}` }).catch(e => console.warn('QR no guardado:', e));
-            // PASO 2: Crear detalles del pedido (uno por cada item del carrito)
-            let detalleErrors = [];
+
+            const operaciones = [];
+            const detalleErrors = [];
+            const stockErrors = [];
+
             for (const item of cartItems) {
-                try {
-                    const detalleBody = {
+                operaciones.push(
+                    request('detalle_pedido', 'POST', {
                         id_pedido: pedidoId,
                         id_producto: item.id,
                         cantidad: item.quantity,
                         precio_unitario: item.price
-                    };
-                    console.log('[Checkout] Creando detalle:', detalleBody);
-                    const detalleResp = await request('detalle_pedido', 'POST', detalleBody);
-                    if (detalleResp && detalleResp.error) {
-                        console.error(`[Checkout] Error detalle producto ${item.id}:`, detalleResp.error);
+                    }).catch(err => {
+                        console.error(`[Checkout] Error detalle producto ${item.id}:`, err);
                         detalleErrors.push(item.name);
-                    }
-                } catch (err) {
-                    console.error(`[Checkout] Error al crear detalle para producto ${item.id}:`, err);
-                    detalleErrors.push(item.name);
-                }
-            }
-
-            // PASO 3: Decrementar stock de cada producto (best effort)
-            let stockErrors = [];
-            for (const item of cartItems) {
-                try {
-                    console.log(`[Checkout] Descontando stock producto ${item.id}: -${item.quantity}`);
-                    const stockResp = await request(`productos/${item.id}/stock`, 'PATCH', {
+                    })
+                );
+                
+                operaciones.push(
+                    request(`productos/${item.id}/stock`, 'PATCH', {
                         cantidad: -item.quantity
-                    });
-                    if (stockResp && stockResp.error) {
-                        console.error(`[Checkout] Error stock producto ${item.id}:`, stockResp.error);
+                    }).catch(err => {
+                        console.error(`[Checkout] Error stock producto ${item.id}:`, err);
                         stockErrors.push(item.name);
-                    }
-                } catch (err) {
-                    console.error(`[Checkout] Error al decrementar stock del producto ${item.id}:`, err);
-                    stockErrors.push(item.name);
-                }
+                    })
+                );
             }
 
-            // PASO 4: Vaciar carrito
+            await Promise.all(operaciones);
+
+            console.log('[Checkout] Operaciones completadas');
+            if (detalleErrors.length > 0) console.warn('Errores en detalles:', detalleErrors);
+            if (stockErrors.length > 0) console.warn('Errores en stock:', stockErrors);
+
             state.cart = [];
             state.persist();
 
-            // PASO 5: Mostrar pantalla de éxito (QR usa el ID real del pedido)
             renderSuccess(pedidoId, total);
-
-            // Log de errores parciales
-            if (detalleErrors.length > 0) {
-                console.warn('[Checkout] No se pudieron registrar detalles para:', detalleErrors);
-            }
-            if (stockErrors.length > 0) {
-                console.warn('[Checkout] No se pudo actualizar stock de:', stockErrors);
-            }
 
         } catch (error) {
             console.error('[Checkout] Error general:', error);
@@ -441,6 +396,5 @@ export function renderCheckout() {
         }
     };
 
-    // Renderizar la pantalla de confirmación
     renderConfirmation();
 }

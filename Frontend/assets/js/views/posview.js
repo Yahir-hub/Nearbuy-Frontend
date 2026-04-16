@@ -1,5 +1,3 @@
-
-
 import { state } from '../state.js';
 import { request } from '../api.js';
 import { Loader } from '../components/Loader.js';
@@ -11,13 +9,13 @@ let allProducts = [];
 let allCategories = [];
 let pendingOrders = [];
 let cajaDiaria = 0;
-let selectedCategory = null;   // null = no mostrar productos hasta que se filtre
+let selectedCategory = null;
 let catalogProducts = [];
 let lastScanMessage = '';
 let lastScanType = '';
-let empleados = [];            // Lista de admin/empleados disponibles
-let selectedPreparador = null; // UUID del empleado que prepara
-let selectedEntrega = null;    // UUID del empleado que entrega
+let empleados = [];
+let selectedPreparador = null;
+let selectedEntrega = null;
 
 export async function renderPOS() {
     const app = document.getElementById('app');
@@ -25,29 +23,26 @@ export async function renderPOS() {
     Loader.show();
     try {
         const [prodRes, catRes, ordersRes, cajaRes, perfilRes] = await Promise.all([
-            request('productos?limit=2000'),
-            request('categorias?limit=150'),
-            request('pedidos/admin?limit=50&estatus=pendiente'),
+            request('productos?limit=500'),
+            request('categorias?limit=50'),
+            request('pedidos/admin?limit=100'),
             request('reportes/ventas-diarias'),
-            request('perfil?limit=1000')
+            request('perfil?limit=200')
         ]);
+
         allProducts = prodRes?.items || [];
         allCategories = catRes?.items || [];
-        pendingOrders = ordersRes?.items || [];
         cajaDiaria = cajaRes?.total || 0;
 
-        // Filtrar solo admin y empleados
+        pendingOrders = (ordersRes?.items || []).filter(o => 
+            o.estatus === 'pendiente' || o.estatus === 'preparando'
+        );
+
         const allPerfiles = perfilRes?.items || [];
         empleados = allPerfiles.filter(p => p.rol === 'admin' || p.rol === 'empleado');
 
-        // Por defecto, el usuario actual es preparador y entrega
         selectedPreparador = state.user?.id || null;
         selectedEntrega = state.user?.id || null;
-
-        const preparandoRes = await request('pedidos/admin?limit=50&estatus=preparando');
-        if (preparandoRes?.items) {
-            pendingOrders = [...pendingOrders, ...(preparandoRes.items)];
-        }
 
         catalogProducts = [...allProducts];
     } catch (e) {
@@ -63,30 +58,21 @@ export async function renderPOS() {
             return;
         }
         try {
-            const [ordersRes, preparandoRes] = await Promise.all([
-                request('pedidos/admin?limit=50&estatus=pendiente'),
-                request('pedidos/admin?limit=50&estatus=preparando')
-            ]);
-            pendingOrders = [
-                ...(ordersRes?.items || []),
-                ...(preparandoRes?.items || [])
-            ];
+            const ordersRes = await request('pedidos/admin?limit=100');
+            pendingOrders = (ordersRes?.items || []).filter(o => 
+                o.estatus === 'pendiente' || o.estatus === 'preparando'
+            );
             renderPOSView();
         } catch (e) {
             console.error('Error actualizando pedidos:', e);
         }
     }, 30000);
 
-
-
     state.subscribe(() => {
         const posContainer = document.getElementById('pos-layout');
         if (posContainer) renderPOSView();
     });
 }
-
-
-
 
 function renderPOSView() {
     const app = document.getElementById('app');
@@ -344,24 +330,17 @@ function renderPOSView() {
 
     bindPOSEvents();
 
-    // Auto-focus en el campo de código de barras
     const barcodeInput = document.getElementById('barcode-input');
     if (barcodeInput) barcodeInput.focus();
 }
 
-
-
-
 function findProductByBarcode(code) {
     if (!code) return null;
     const normalized = code.trim().toLowerCase();
-    // 1. Búsqueda exacta por código de barras
     const byCode = allProducts.find(p => p.codigo && p.codigo.trim().toLowerCase() === normalized);
     if (byCode) return byCode;
-    // 2. Por ID numérico
     const byId = allProducts.find(p => String(p.id) === normalized);
     if (byId) return byId;
-    // 3. Búsqueda parcial por descripción
     const byDesc = allProducts.find(p => p.descripcion && p.descripcion.toLowerCase().includes(normalized));
     if (byDesc) return byDesc;
     return null;
@@ -403,9 +382,7 @@ function processBarcodeScan(code) {
     lastScanType = 'success';
 }
 
-
 function bindPOSEvents() {
-    // Campo de código de barras
     const barcodeInput = document.getElementById('barcode-input');
     if (barcodeInput) {
         barcodeInput.addEventListener('keydown', (e) => {
@@ -415,7 +392,6 @@ function bindPOSEvents() {
                 barcodeInput.value = '';
             }
         });
-        // Mantener focus para lectores de código
         document.addEventListener('click', (e) => {
             const tag = e.target.tagName.toLowerCase();
             if (tag !== 'button' && tag !== 'input' && tag !== 'select' && tag !== 'a') {
@@ -424,7 +400,6 @@ function bindPOSEvents() {
         });
     }
 
-    // Botón manual
     const btnManual = document.getElementById('btn-manual-add');
     if (btnManual) {
         btnManual.onclick = () => {
@@ -433,7 +408,6 @@ function bindPOSEvents() {
         };
     }
 
-    // Selección de empleados (guardar en variables locales para persistir entre re-renders)
     const selPrep = document.getElementById('select-preparador');
     if (selPrep) {
         selPrep.onchange = () => { selectedPreparador = selPrep.value; };
@@ -443,12 +417,10 @@ function bindPOSEvents() {
         selEnt.onchange = () => { selectedEntrega = selEnt.value; };
     }
 
-    // Filtro categoría
     document.querySelectorAll('.pos-cat-btn').forEach(btn => {
         btn.onclick = () => { selectedCategory = btn.dataset.cat === 'all' ? 'all' : parseInt(btn.dataset.cat); renderPOSView(); };
     });
 
-    // Click en catálogo
     document.querySelectorAll('.pos-prod-card').forEach(card => {
         card.onclick = () => {
             const id = parseInt(card.dataset.id);
@@ -463,7 +435,6 @@ function bindPOSEvents() {
         };
     });
 
-    // Cantidad en tabla
     document.querySelectorAll('.sale-qty-btn').forEach(btn => {
         btn.onclick = () => {
             const id = parseInt(btn.dataset.id);
@@ -478,12 +449,10 @@ function bindPOSEvents() {
         };
     });
 
-    // Quitar de tabla
     document.querySelectorAll('.sale-remove-btn').forEach(btn => {
         btn.onclick = () => { state.removeFromPOS(parseInt(btn.dataset.id)); lastScanMessage = ''; lastScanType = ''; };
     });
 
-    // Completar pedido
     document.querySelectorAll('.btn-order-complete').forEach(btn => {
         btn.onclick = async () => {
             const orderId = parseInt(btn.dataset.id);
@@ -501,13 +470,11 @@ function bindPOSEvents() {
         };
     });
 
-    // Cancelar venta
     const btnLimpiar = document.getElementById('btn-limpiar-venta');
     if (btnLimpiar) {
         btnLimpiar.onclick = () => { if (confirm('¿Cancelar la venta actual?')) { state.clearPOS(); lastScanMessage = ''; lastScanType = ''; } };
     }
 
-    // Finalizar venta
     const btnFinalizar = document.getElementById('btn-finalizar-venta');
     if (btnFinalizar) {
         btnFinalizar.onclick = async () => {
@@ -519,7 +486,6 @@ function bindPOSEvents() {
 
             Loader.show();
             try {
-                // Leer empleados seleccionados de los dropdowns
                 const preparadorId = document.getElementById('select-preparador')?.value || state.user.id;
                 const entregaId = document.getElementById('select-entrega')?.value || state.user.id;
 
@@ -534,15 +500,30 @@ function bindPOSEvents() {
                 if (!pedidoRes || !pedidoRes.id) throw new Error('No se pudo crear el pedido');
                 const pedidoId = pedidoRes.id;
 
+                const operaciones = [];
                 for (const item of items) {
-                    await request('detalle_pedido', 'POST', { id_pedido: pedidoId, id_producto: item.id, cantidad: item.quantity, precio_unitario: item.price });
+                    operaciones.push(
+                        request('detalle_pedido', 'POST', { 
+                            id_pedido: pedidoId, 
+                            id_producto: item.id, 
+                            cantidad: item.quantity, 
+                            precio_unitario: item.price 
+                        })
+                    );
+                    operaciones.push(
+                        request(`productos/${item.id}/stock`, 'PATCH', { 
+                            cantidad: -item.quantity 
+                        })
+                    );
                 }
-                for (const item of items) {
-                    await request(`productos/${item.id}/stock`, 'PATCH', { cantidad: -item.quantity });
-                }
+                
+                await Promise.all(operaciones);
 
                 state.clearPOS();
-                const [prodRes, cajaRes] = await Promise.all([request('productos?limit=500'), request('reportes/ventas-diarias')]);
+                const [prodRes, cajaRes] = await Promise.all([
+                    request('productos?limit=500'),
+                    request('reportes/ventas-diarias')
+                ]);
                 allProducts = prodRes?.items || [];
                 cajaDiaria = cajaRes?.total || 0;
                 catalogProducts = [];

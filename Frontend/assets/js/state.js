@@ -1,37 +1,24 @@
-/**
- * [MODIFICADO] state.js
- * Manejo del estado global (Usuario + Carrito Web + Carrito POS)
- * 
- * CAMBIOS:
- * - Nuevo: posCart[] para ventas en punto de venta físico (separado del cart web)
- * - Nuevos métodos: addToPOS(), removeFromPOS(), updatePOSQuantity(), getPOSTotal(), getPOSCount(), clearPOS()
- * - persist() ahora incluye posCart
- */
-
 const initialState = {
     user: null,
     isAuthenticated: false,
     token: null,
-    cart: [],     // Carrito de la tienda web (pick-up)
-    posCart: []   // NUEVO: Carrito del punto de venta físico
+    cart: [],
+    posCart: []
 };
 
-// Intentar recuperar sesión guardada
 const savedSession = localStorage.getItem('nearbuy_session');
 const startState = savedSession ? JSON.parse(savedSession) : initialState;
 
-// Asegurar que posCart exista en sesiones antiguas guardadas sin este campo
 if (!startState.posCart) {
     startState.posCart = [];
 }
 
-// Lista de suscriptores (partes de la app que escuchan cambios)
 const listeners = [];
 
 export const state = {
     ...startState,
+    notifyTimeout: null,
     
-    // --- SUSCRIPCIÓN (Para que la vista se actualice sola) ---
     subscribe(listener) {
         listeners.push(listener);
     },
@@ -41,11 +28,13 @@ export const state = {
     },
 
     notify() {
-        listeners.forEach(listener => listener(this));
-        this.persist();
+        clearTimeout(this.notifyTimeout);
+        this.notifyTimeout = setTimeout(() => {
+            listeners.forEach(listener => listener(this));
+            this.persist();
+        }, 50);
     },
 
-    // --- USUARIO ---
     setUser(user, token) {
         this.user = user;
         this.token = token;
@@ -63,9 +52,6 @@ export const state = {
         this.notify();
     },
 
-    // =========================================================
-    // CARRITO WEB (TIENDA ONLINE — sin cambios)
-    // =========================================================
     addToCart(product) {
         const existingItem = this.cart.find(item => item.id === product.id);
         if (existingItem) {
@@ -102,15 +88,11 @@ export const state = {
         return this.cart.reduce((total, item) => total + (item.price * item.quantity), 0);
     },
 
-    // =========================================================
-    // CARRITO POS (PUNTO DE VENTA FÍSICO — NUEVO)
-    // =========================================================
     addToPOS(product) {
         const existingItem = this.posCart.find(item => item.id === product.id);
         if (existingItem) {
             existingItem.quantity++;
         } else {
-            // Guardamos id, descripción (como name), precio, stock, imagen
             this.posCart.push({
                 id: product.id,
                 name: product.descripcion || product.nombre || product.name || 'Sin descripción',
@@ -154,14 +136,13 @@ export const state = {
         this.notify();
     },
 
-    // --- PERSISTENCIA ---
     persist() {
         localStorage.setItem('nearbuy_session', JSON.stringify({
             user: this.user,
             token: this.token,
             isAuthenticated: this.isAuthenticated,
             cart: this.cart,
-            posCart: this.posCart   // NUEVO: persistir carrito POS
+            posCart: this.posCart
         }));
     }
 };
